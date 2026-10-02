@@ -255,7 +255,11 @@ function rezerva(b) {
       linkRefuz: url + '?action=decline&id=' + rez.id + '&token=' + rez.token,
       notaBooking: nota ? '<p style="background:#fff1b8;padding:12px 16px;border-radius:6px;font-size:14px">' + Core.esc(nota) + '</p>' : ''
     }), rez.email);
-  } catch (err) { console.error('Email eșuat', err); }
+  } catch (err) {
+    console.error('Email eșuat', err);
+    var tr = citeste(FOI.rez), rr = tr.rows.filter(function (x) { return x.id === rez.id; })[0];
+    if (rr) scrieCelula(tr, rr._row, 'notaBooking', (nota ? nota + ' ' : '') + 'EMAIL EȘUAT: ' + err.message);
+  }
 
   return { ok: true, id: rez.id, status: 'pending', expiresAt: rez.expiraLa };
 }
@@ -430,4 +434,29 @@ function trimite(catre, nume, limba, subiect, data, replyTo) {
   var o = { to: catre, subject: subiect, htmlBody: Core.fillTemplate(sablon(nume, limba), data), name: data.numeProprietate };
   if (replyTo) o.replyTo = replyTo;
   MailApp.sendEmail(o);
+}
+
+// ============================================================ teste (se rulează din editor)
+
+// Trimite cele două emailuri (oaspete + gazdă) la emailGazda, cu date de probă.
+// Dacă ceva e greșit (șablon lipsă, permisiune, adresă goală), eroarea apare în jurnal.
+function testEmail() {
+  var cfg = setari();
+  if (!cfg.emailGazda) throw new Error('Completează emailGazda în foaia Setari.');
+  var r = { id: 'TEST', nume: 'Oaspete Test', email: cfg.emailGazda, telefon: '0700000000', checkIn: Core.addDays(azi(), 30),
+    checkOut: Core.addDays(azi(), 32), tipuri: 'cabana×1', adulti: 2, copii: '', total: 1000, moneda: 'lei', oraSosire: '16:00', cereri: 'test', limba: 'ro' };
+  trimite(cfg.emailGazda, 'email-confirmare', 'ro', 'TEST oaspete – ' + cfg.numeProprietate, date(r, cfg, { titlu: 'Test email oaspete', mesaj: 'Dacă vezi asta, emailul către oaspete merge.' }));
+  trimite(cfg.emailGazda, 'email-gazda', 'ro', 'TEST gazdă – ' + cfg.numeProprietate, date(r, cfg, {}));
+  console.log('Trimise 2 emailuri de test către ' + cfg.emailGazda + '. Mai poți trimite azi: ' + MailApp.getRemainingDailyQuota());
+}
+
+// Simulează o cerere de pe site, cap-coadă (rând în Rezervari + emailuri). Șterge apoi rândul TEST.
+function testRezervare() {
+  var cfg = setari();
+  var tip = cfg.camere.length ? cfg.camere[0].type : '';
+  var rez = rezerva({ action: 'book', lang: 'ro', checkIn: Core.addDays(azi(), 300), checkOut: Core.addDays(azi(), 302), adults: 2, children: [],
+    rooms: [{ type: tip, qty: 1 }], total: 1000, currency: 'lei',
+    guest: { name: 'Test Site', email: cfg.emailGazda, phone: '0700000000', arrival: '', notes: 'test din editor' },
+    consent: { data: true, offers: false } });
+  console.log(JSON.stringify(rez));
 }

@@ -200,3 +200,11 @@ test('formule: textul oaspetelui nu devine formulă în Sheets, telefonul +40 r�
   assert.equal(row[11], '+40 722 123 456');
   assert.equal(row[13], "'@cmd");
 });
+
+test('funcțiile de test din editor rulează', () => {
+  const { ctx, mails } = mediu();
+  ctx.testEmail();
+  assert.equal(mails.length, 2);
+  ctx.testRezervare();
+  assert.equal(mails.length, 4);
+});
