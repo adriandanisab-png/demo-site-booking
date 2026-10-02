@@ -47,9 +47,9 @@ window.SITE = {
     title: ["o casă", "între râu", "și pădure"],   // titlul rupt pe rânduri, cu litere mici
     text: "Patru dormitoare, un șemineu și Munții Făgăraș la poartă. Toată casa e a voastră.",
     images: [
-      { file: null, alt: "Cabana văzută din curte", label: "FOTO: cabana văzută din curte" },
-      { file: null, alt: "Livingul cu șemineu", label: "FOTO: livingul cu șemineul" },
-      { file: null, alt: "Râul de lângă cabană", label: "FOTO: râul de lângă casă" }
+      { file: "img/terasa-rau.webp", alt: "Terasa de lemn a cabanei, cu foișorul de sticlă și râul printre copaci" },
+      { file: "img/foisor-sticla.webp", alt: "Masa de lemn din foișorul de sticlă, cu pădurea în jur" },
+      { file: "img/dormitor-mansarda.webp", alt: "Dormitorul de la mansardă, cu fereastră în acoperiș" }
     ]
   },
 
@@ -96,13 +96,15 @@ window.SITE = {
       beds: null,             // ex. „3 paturi duble, 1 pat dublu + 1 single”
       size: null,             // ex. „180 m²”
       amenities: ["4 dormitoare", "3 băi cu duș", "Bucătărie complet utilată", "Șemineu", "Home cinema"],
-      price: null,            // preț pe noapte pentru toată cabana
-      seasons: [],            // ex. { name: "Sărbători", from: "12-20", to: "01-05", price: 2500 }
+      price: 1400,            // preț pe noapte pentru toată cabana, în timpul săptămânii
+      weekendPrice: 1700,     // preț pe noapte în weekend (null = același preț)
+      weekendDays: [5, 6],    // nopțile de weekend: 5 = vineri, 6 = sâmbătă (0 = duminică)
+      seasons: [],            // ex. { name: "Sărbători", from: "12-20", to: "01-05", price: 2500, weekendPrice: 2800 }
       extraBed: { max: 0, price: null },
-      minNights: null,        // minim de nopți (null = 1)
+      minNights: 2,           // minim de nopți
       images: [
-        { file: null, alt: "Dormitor de la etaj", label: "FOTO: dormitor de la etaj" },
-        { file: null, alt: "Bucătăria", label: "FOTO: bucătăria" }
+        { file: "img/dormitor-mansarda.webp", alt: "Dormitorul de la mansardă, cu pat dublu și scară de lemn" },
+        { file: "img/biblioteca.webp", alt: "Peretele cu cărți și ușa spre un dormitor" }
       ]
     }
   ],
@@ -142,19 +144,17 @@ window.SITE = {
       { name: "Brașov", text: null, distance: "~1 h 30 min cu mașina" },
       { name: "Aeroportul Sibiu", text: null, distance: "~1 h 30 min cu mașina" }
     ],
-    image: { file: null, alt: "Munții Făgăraș", label: "FOTO: peisaj cu Munții Făgăraș" }
+    image: { file: "img/foisor-sticla.webp", alt: "Foișorul de sticlă din curte, cu pădurea în jur" }
   },
 
   gallery: {
     title: ["cum arată", "o zi aici"],
     images: [
-      { file: null, alt: "Fațada", label: "FOTO: fațada" },
-      { file: null, alt: "Livingul", label: "FOTO: livingul" },
-      { file: null, alt: "Dormitor", label: "FOTO: dormitor" },
-      { file: null, alt: "Baie", label: "FOTO: baia" },
-      { file: null, alt: "Curtea cu grătarul", label: "FOTO: curtea cu grătarul" },
-      { file: null, alt: "Râul", label: "FOTO: râul" },
-      { file: null, alt: "Iarna", label: "FOTO: cabana iarna" }
+      { file: "img/terasa-rau.webp", alt: "Terasa de lemn și râul" },
+      { file: "img/dormitor-mansarda.webp", alt: "Dormitorul de la mansardă" },
+      { file: "img/fereastra-lemn.webp", alt: "Colț de citit lângă fereastră, iarna" },
+      { file: "img/foisor-sticla.webp", alt: "Masa din foișorul de sticlă" },
+      { file: "img/biblioteca.webp", alt: "Peretele cu cărți" }
     ],
     video: { file: null, url: "https://www.youtube.com/watch?v=kUARu66d3-s", label: "VIDEO: tur al cabanei" },
     drone: { file: null, label: "FOTO/VIDEO: cadre cu drona" }
@@ -167,8 +167,8 @@ window.SITE = {
   },
 
   policies: {
-    checkIn: null,            // ex. „după 15:00”
-    checkOut: null,           // ex. „până la 11:00”
+    checkIn: "De la 16:00, în ziua sosirii.",
+    checkOut: "Până la 11:00.",
     cancellation: null,
     deposit: null,
     pets: null,
@@ -180,14 +180,14 @@ window.SITE = {
 
   hours: {
     reception: null,          // ex. „09:00 – 21:00, la telefon”
-    checkIn: null,
-    checkOut: null,
+    checkIn: "de la 16:00",
+    checkOut: "până la 11:00",
     breakfast: null           // null dacă nu se servește
   },
 
   faq: [
     { q: "Câte persoane încap?", a: "Cel mult 9 persoane, în 4 dormitoare." },
-    { q: "Se închiriază pe camere?", a: "Nu, cabana se închiriază întreagă." },
+    { q: "Se închiriază pe camere?", a: "Nu, cabana se închiriază doar întreagă, pentru minimum 2 nopți." },
     { q: "Pot veni cu un copil mic?", a: "Da. Avem pătuț și scaun de masă pentru bebeluși." },
     { q: "Pot veni cu animalul de companie?", a: null },
     { q: "Cât de departe e de Brașov?", a: "Cam o oră și jumătate cu mașina. Până în Făgăraș faceți circa 30 de minute." },

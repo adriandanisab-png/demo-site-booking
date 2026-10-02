@@ -45,13 +45,21 @@ var Core = (function () {
     return s.from <= s.to ? md >= s.from && md <= s.to : md >= s.from || md <= s.to;
   }
 
-  // Prețul unei nopți pentru un tip de cameră: primul sezon potrivit, altfel prețul de bază
+  // Noaptea de după această zi e de weekend? weekendDays = zilele săptămânii (0 = duminică … 6 = sâmbătă),
+  // implicit vineri și sâmbătă noaptea.
+  function isWeekendNight(room, iso) {
+    var days = room.weekendDays || [5, 6];
+    return days.indexOf(new Date(toTime(iso)).getUTCDay()) >= 0;
+  }
+
+  // Prețul unei nopți: primul sezon potrivit, altfel prețul de bază; fiecare poate avea preț de weekend
   function nightPrice(room, iso) {
-    var seasons = room.seasons || [];
+    var src = room, seasons = room.seasons || [];
     for (var i = 0; i < seasons.length; i++) {
-      if (seasons[i].price != null && inSeason(iso, seasons[i])) return seasons[i].price;
+      if (seasons[i].price != null && inSeason(iso, seasons[i])) { src = seasons[i]; break; }
     }
-    return room.price == null ? null : room.price;
+    if (src.weekendPrice != null && isWeekendNight(room, iso)) return src.weekendPrice;
+    return src.price == null ? null : src.price;
   }
 
   // Prețul sejurului. rooms = [{ room, qty, extraBeds }]. Întoarce total null dacă lipsește vreun preț.
@@ -187,7 +195,7 @@ var Core = (function () {
 
   return {
     isDate: isDate, addDays: addDays, nightsBetween: nightsBetween, eachNight: eachNight,
-    overlaps: overlaps, busySet: busySet, isFree: isFree, inSeason: inSeason, nightPrice: nightPrice,
+    overlaps: overlaps, busySet: busySet, isFree: isFree, inSeason: inSeason, isWeekendNight: isWeekendNight, nightPrice: nightPrice,
     priceStay: priceStay, suggestDates: suggestDates, parseICS: parseICS, buildICS: buildICS,
     validEmail: validEmail, validateBooking: validateBooking, esc: esc, fillTemplate: fillTemplate
   };

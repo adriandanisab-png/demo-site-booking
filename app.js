@@ -23,7 +23,8 @@
       reviewsTitle: ['ce spun', 'oaspeții'], policiesTitle: ['reguli', 'pe scurt'], faqTitle: ['întrebări', 'frecvente'], contactTitle: ['vă', 'așteptăm'],
       directText: 'Cererea ajunge la gazdă, care o confirmă personal.',
       capacity: 'Capacitate', persons: 'persoane', beds: 'Paturi', size: 'Suprafață', minNights: 'Minim',
-      perNight: 'pe noapte', from: 'de la', priceAsk: 'Preț', seeAvailability: 'Vezi disponibilitatea',
+      perNight: 'pe noapte', from: 'de la', weekdays: 'în timpul săptămânii', atNight: 'noaptea', night: 'noapte',
+      dayNames: ['duminică', 'luni', 'marți', 'miercuri', 'joi', 'vineri', 'sâmbătă'], and: 'și', priceAsk: 'Preț', seeAvailability: 'Vezi disponibilitatea',
       directDiscount: function (p) { return 'Preț direct: -' + p + '% față de platforme'; },
       seeAll: 'Vezi toate pozele', video: 'Video', drone: 'Drona', reviewsCount: function (n, s) { return n + ' recenzii pe ' + s; },
       reviewsPh: 'RECENZII REALE (text, prenume, sursă)', seeReviews: 'Vezi recenziile',
@@ -236,10 +237,21 @@
       [ui.size, L(r.size), 'SUPRAFAȚĂ'],
       [ui.minNights, r.minNights ? ui.nightsN(r.minNights) : null, 'MINIM DE NOPȚI']
     ].filter(function (f) { return !clean || f[1]; });
-    var prices = [r.price].concat((r.seasons || []).map(function (s) { return s.price; })).filter(function (p) { return p != null; });
-    var price = prices.length
-      ? '<div class="price-line"><span>' + esc(ui.from) + '</span><b>' + Math.min.apply(null, prices) + ' ' + esc(b.currency || 'lei') + '</b><span>' + esc(ui.perNight) + '</span></div>'
-      : (clean ? '' : '<div class="price-line">' + ph('PREȚ PE NOAPTE') + '</div>');
+    var cur = esc(b.currency || 'lei');
+    var money = function (n) { return Number(n).toLocaleString('ro-RO'); };
+    var price;
+    if (r.price != null && r.weekendPrice != null) {
+      // preț diferit în weekend: două rânduri, cu nopțile de weekend numite
+      var wd = (r.weekendDays || [5, 6]).map(function (d) { return ui.dayNames[d]; });
+      var wdText = wd.length > 1 ? wd.slice(0, -1).join(', ') + ' ' + ui.and + ' ' + wd[wd.length - 1] : wd[0];
+      price = '<dl class="prices"><div><dt>' + esc(ui.weekdays) + '</dt><dd><b>' + money(r.price) + ' ' + cur + '</b> / ' + esc(ui.night) + '</dd></div>' +
+        '<div><dt>' + esc(wdText) + ' ' + esc(ui.atNight) + '</dt><dd><b>' + money(r.weekendPrice) + ' ' + cur + '</b> / ' + esc(ui.night) + '</dd></div></dl>';
+    } else {
+      var prices = [r.price].concat((r.seasons || []).map(function (s) { return s.price; })).filter(function (p) { return p != null; });
+      price = prices.length
+        ? '<div class="price-line"><span>' + esc(ui.from) + '</span><b>' + money(Math.min.apply(null, prices)) + ' ' + cur + '</b><span>' + esc(ui.perNight) + '</span></div>'
+        : (clean ? '' : '<div class="price-line">' + ph('PREȚ PE NOAPTE') + '</div>');
+    }
     return '<article class="room reveal"><div class="room-photos">' + (r.images || []).slice(0, 2).map(function (im) { return photo(im); }).join('') + '</div>' +
       '<div><h3>' + T(r.name) + '</h3><p class="lead">' + T(r.description) + '</p>' +
       (facts.length ? '<dl class="facts">' + facts.map(function (f) { return '<div><dt>' + esc(f[0]) + '</dt><dd>' + (f[1] ? esc(f[1]) : ph(f[2])) + '</dd></div>'; }).join('') + '</dl>' : '') +

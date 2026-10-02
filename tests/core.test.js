@@ -50,6 +50,18 @@ test('preț: sezon peste Anul Nou, pat suplimentar, reducere informativă', () =
   assert.equal(p.discount, p.platform - p.total);
 });
 
+test('preț: weekend (vineri și sâmbătă noaptea), inclusiv în sezon', () => {
+  const cab = { id: 'c', price: 1400, weekendPrice: 1700, seasons: [{ from: '12-20', to: '01-05', price: 2000 }] };
+  // 2026-10-08 e joi: joi 1400, vineri 1700, sâmbătă 1700, duminică 1400
+  const p = Core.priceStay([{ room: cab, qty: 1 }], '2026-10-08', '2026-10-12', 0);
+  assert.equal(p.total, 1400 + 1700 + 1700 + 1400);
+  // sezonul fără preț de weekend propriu folosește doar prețul sezonului
+  assert.equal(Core.nightPrice(cab, '2026-12-25'), 2000);
+  // zile de weekend alese de proprietar (sâmbătă și duminică noaptea)
+  assert.equal(Core.nightPrice({ ...cab, weekendDays: [6, 0] }, '2026-10-09'), 1400);
+  assert.equal(Core.nightPrice({ ...cab, weekendDays: [6, 0] }, '2026-10-11'), 1700);
+});
+
 test('preț: lipsă de preț → total null, nu 0', () => {
   const p = Core.priceStay([{ room: { id: 'x', price: null }, qty: 1 }], '2026-10-01', '2026-10-03', 0);
   assert.equal(p.total, null);
