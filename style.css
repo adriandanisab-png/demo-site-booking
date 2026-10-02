@@ -253,7 +253,7 @@ body { padding-bottom: 84px; }
 .search button.field:nth-child(2) { border-radius: 0 calc(var(--radius-lg) + 2px) 0 0; border-left: 1px solid var(--line); }
 .search button.field.wide { grid-column: 1 / -1; border-top: 1px solid var(--line); border-radius: 0; }
 .search .k { font-size: .68rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-.search .v { font-size: 1rem; font-weight: 500; }
+.search .v { font-size: 1rem; font-weight: 500; white-space: nowrap; }
 .search .btn { grid-column: 1 / -1; justify-content: space-between; border-radius: 0 0 calc(var(--radius-lg) + 2px) calc(var(--radius-lg) + 2px); }
 .hero-call { margin-top: 18px; font-size: .95rem; color: var(--muted); }
 .benefits { list-style: none; padding: 0; margin: 40px 0 0; display: grid; gap: 14px; }
@@ -414,7 +414,7 @@ footer .ph { background: #4a3f12; color: #ffe27a; }
 @media (min-width: 960px) { .bk-main { padding-bottom: 48px; } }
 .bk-step { animation: stepIn .6s var(--ease-out); }
 @keyframes stepIn { from { opacity: 0; transform: translateX(16px); } }
-.bk h2 { font-family: var(--font-serif); font-weight: var(--serif-weight); font-size: clamp(2rem, 4vw, 2.8rem); line-height: 1; margin: 0 0 .5em; text-transform: lowercase; }
+.bk h2:not(.big) { font-family: var(--font-serif); font-weight: var(--serif-weight); font-size: clamp(2rem, 4vw, 2.8rem); line-height: 1; margin: 0 0 .5em; text-transform: lowercase; }
 .bk .hint { color: var(--muted); font-size: .92rem; margin: 0 0 20px; }
 .bk .err { color: #a3261b; font-size: .92rem; margin: 10px 0 0; }
 .bk .warn { background: var(--bg-2); border-radius: var(--radius); padding: 14px 16px; margin: 16px 0; font-size: .95rem; }
@@ -445,15 +445,15 @@ footer .ph { background: #4a3f12; color: #ffe27a; }
 .cal-head .round { width: 40px; height: 40px; background: var(--bg-2); color: var(--ink); font-size: 1rem; }
 .cal-head .round[disabled] { opacity: .35; cursor: default; }
 .cal-months { display: grid; gap: 32px; }
-@media (min-width: 720px) { .cal-months { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 720px) { .cal-months { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .cal h4 { font-family: var(--font-serif); font-weight: var(--serif-weight); font-size: 1.35rem; margin: 0 0 10px; text-transform: lowercase; text-align: center; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px 0; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px 0; }
 .cal-grid .dow { font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); text-align: center; padding: 6px 0; }
 .day {
   aspect-ratio: 1; border: 0; background: none; cursor: pointer; font-size: .92rem; position: relative;
   display: grid; place-items: center; border-radius: 0; transition: background-color .25s var(--ease);
 }
-.day span { width: 40px; height: 40px; max-width: 100%; display: grid; place-items: center; border-radius: 50%; position: relative; z-index: 1; }
+.day span { width: min(40px, 100%); aspect-ratio: 1; height: auto; display: grid; place-items: center; border-radius: 50%; position: relative; z-index: 1; }
 .day:hover:not([disabled]) span { box-shadow: inset 0 0 0 1px var(--ink); }
 .day[disabled] { cursor: default; color: color-mix(in srgb, var(--ink) 32%, transparent); }
 .day.past span, .day.busy span { text-decoration: line-through; text-decoration-thickness: 1px; }
@@ -509,7 +509,7 @@ footer .ph { background: #4a3f12; color: #ffe27a; }
 
 /* confirmare */
 .done { max-width: 620px; }
-.done .big { font-family: var(--font-serif); font-size: clamp(2.4rem, 6vw, 4rem); line-height: .95; margin: 0 0 .4em; text-transform: lowercase; }
+.done .big { font-family: var(--font-serif); font-weight: var(--serif-weight); font-size: clamp(2.4rem, 6vw, 4rem); line-height: .95; margin: 0 0 .4em; }
 .done ol { padding-left: 1.2em; color: var(--muted); }
 .done .links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 
@@ -519,3 +519,6 @@ footer .ph { background: #4a3f12; color: #ffe27a; }
   .reveal { opacity: 1; transform: none; }
   .marquee { overflow-x: auto; }
 }
+
+/* pe mobil, „Rezervă” stă jos, fix; în header ar fi dublat */
+@media (max-width: 959px) { .hdr .hdr-actions > .btn { display: none; } }

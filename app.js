@@ -12,7 +12,7 @@
   // ---------------------------------------------------------------- texte de interfață
   var UI = {
     ro: {
-      demoBar: 'Machetă demonstrativă pentru', menu: 'Meniu', close: 'Închide', book: 'Rezervă', bookNow: 'Verifică disponibilitatea',
+      demoBar: 'Machetă demonstrativă pentru', menu: 'Meniu', close: 'Închide', book: 'Rezervă', bookNow: 'Verifică disponibilitatea', search: 'Verifică',
       call: 'Sună acum', checkIn: 'Sosire', checkOut: 'Plecare', guests: 'Oaspeți', pickDate: 'Alege data',
       adultsN: function (n) { return n === 1 ? '1 adult' : n + ' adulți'; },
       childrenN: function (n) { return n === 1 ? '1 copil' : n + ' copii'; },
@@ -207,7 +207,7 @@
         '<button type="button" class="field" data-book="dates"><span class="k">' + esc(ui.checkIn) + '</span><span class="v" data-search="in">' + esc(ui.pickDate) + '</span></button>' +
         '<button type="button" class="field" data-book="dates"><span class="k">' + esc(ui.checkOut) + '</span><span class="v" data-search="out">' + esc(ui.pickDate) + '</span></button>' +
         '<button type="button" class="field wide" data-book="guests"><span class="k">' + esc(ui.guests) + '</span><span class="v" data-search="guests">' + esc(ui.adultsN(2)) + '</span></button>' +
-        '<button type="button" class="btn" data-book>' + esc(ui.bookNow) + btnIco() + '</button>' +
+        '<button type="button" class="btn" data-book>' + esc(ui.search) + btnIco() + '</button>' +
       '</div>' +
       (c.phone ? '<p class="hero-call"><a href="' + telHref(c.phone) + '">' + esc(ui.call) + ': ' + esc(c.phone) + '</a></p>'
         : (clean ? '' : '<p class="hero-call">' + esc(ui.call) + ': ' + ph('TELEFON') + '</p>')) +
