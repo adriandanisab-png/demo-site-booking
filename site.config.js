@@ -17,7 +17,7 @@
 
 window.SITE = {
   demo: true,                 // bandă „Machetă demonstrativă” + noindex. La lansare: false.
-  appsScriptUrl: "",          // URL-ul Web App din Apps Script (…/exec). Gol = MOD DEMO.
+  appsScriptUrl: "https://script.google.com/macros/s/AKfycby3nrVLHrQOFDeaqn1Kt4FKPPn0GJGIHUwM7Sdzq9oFXMamb2ZfdccG9fPhleUB3ujM/exec", // URL-ul Web App (…/exec). Gol = MOD DEMO.
   languages: ["ro"],          // prima e implicită. Ex. ["ro", "hu", "en"] afișează butonul de limbă.
   theme: "editorial",         // "editorial" (modern, sobru) sau "cald" (rustic, de munte)
   accent: null,               // culoare de accent proprie, ex. "#8a4b2a"; null = cea a temei
