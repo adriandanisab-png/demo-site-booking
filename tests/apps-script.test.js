@@ -191,3 +191,12 @@ test('revenire: doar confirmați, cu acord, din ultimul an, o singură dată', (
   ctx.trimiteRevenire();
   assert.equal(mails.length, n + 1);
 });
+
+test('formule: textul oaspetelui nu devine formulă în Sheets, telefonul +40 rămâne', () => {
+  const { ctx, sheets } = mediu();
+  const { id } = post(ctx, cerere({ guest: { name: '=HYPERLINK("x")', email: 'f@example.com', phone: '+40 722 123 456', notes: '@cmd' } }));
+  const row = sheets.Rezervari.rows.find((r) => r && r[0] === id);
+  assert.equal(row[9], "'=HYPERLINK(\"x\")");
+  assert.equal(row[11], '+40 722 123 456');
+  assert.equal(row[13], "'@cmd");
+});

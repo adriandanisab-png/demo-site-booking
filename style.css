@@ -326,7 +326,8 @@ body { padding-bottom: 84px; }
 /* ---------------------------------------------------------------- galerie: bandă care se derulează */
 .marquee { overflow: hidden; margin-top: 8px; mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
 .marquee-track { display: flex; gap: 14px; width: max-content; animation: slide 60s linear infinite; }
-.marquee:hover .marquee-track { animation-play-state: paused; }
+.marquee:hover .marquee-track, .marquee:focus-within .marquee-track { animation-play-state: paused; }
+.photo-btn:focus-visible .photo { outline: 2px solid var(--accent); outline-offset: 3px; }
 .marquee .photo { width: clamp(220px, 28vw, 360px); aspect-ratio: 4 / 5; flex: none; cursor: zoom-in; border: 0; padding: 0; }
 @keyframes slide { to { transform: translateX(-50%); } }
 .gallery-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 40px; }

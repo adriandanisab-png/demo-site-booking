@@ -260,7 +260,11 @@ function rezerva(b) {
   return { ok: true, id: rez.id, status: 'pending', expiresAt: rez.expiraLa };
 }
 
-function clip(v, n) { return String(v == null ? '' : v).trim().slice(0, n); }
+// Text de la oaspete: tăiat la n caractere; un apostrof în față dacă ar arăta ca o formulă în Sheets
+function clip(v, n) {
+  var s = String(v == null ? '' : v).trim().slice(0, n);
+  return /^([=@]|[+\-][^\d\s])/.test(s) ? "'" + s : s;
+}
 
 // ============================================================ confirmare / refuz de către gazdă
 

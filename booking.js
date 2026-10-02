@@ -23,6 +23,7 @@
       noneFree: 'În perioada aleasă nu mai e liber.', tryThese: 'Cele mai apropiate date libere:',
       noSuggest: 'Nu am găsit date libere apropiate. Sună-ne și căutăm împreună.',
       tooMany: function (n) { return 'Aveți loc pentru cel mult ' + n + ' persoane. Reduceți numărul de oaspeți sau alegeți mai multe camere.'; },
+      tooManyOne: function (n) { return 'Încap cel mult ' + n + ' persoane.'; },
       roomsTitle: 'alege camera', roomsHint: 'Apar doar camerele libere pe toată perioada.',
       free: function (n) { return n === 1 ? 'mai e 1 liberă' : 'mai sunt ' + n + ' libere'; },
       qty: 'Câte', extraBeds: 'Paturi suplimentare', persons: 'persoane', totalFor: function (n) { return 'total pentru ' + n; },
@@ -355,7 +356,7 @@
         // o singură unitate (ex. cabana întreagă): pasul 2 se sare
         var r = ROOMS.filter(function (x) { return (x.units || []).length; })[0];
         st.sel = {}; st.sel[r.id] = { qty: 1, beds: 0 };
-        if (r.capacity && persons() > r.capacity) { st.msg = t.tooMany(r.capacity); return draw(); }
+        if (r.capacity && persons() > r.capacity) { st.msg = t.tooManyOne(r.capacity); return draw(); }
         st.step = 3; return draw();
       }
       // preselectează camera aleasă de pe pagină, dacă e liberă
