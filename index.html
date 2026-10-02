@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title></title>
+<!-- Titlul, descrierea, robots și datele structurate vin din site.config.js (app.js) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="style.css">
+<script src="site.config.js"></script>
+<script src="core.js" defer></script>
+<script src="app.js" defer></script>
+<script src="booking.js" defer></script>
+</head>
+<body>
+  <!-- Toată pagina e randată de app.js din site.config.js -->
+  <div id="app"></div>
+  <!-- Fluxul de rezervare (booking.js) -->
+  <div id="booking" class="bk" hidden></div>
+  <noscript><p style="padding:2rem">Pentru rezervare ai nevoie de JavaScript activat.</p></noscript>
+</body>
+</html>
