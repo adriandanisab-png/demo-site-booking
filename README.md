@@ -100,7 +100,26 @@ neconfirmate la timp. Se vede în meniul din stânga, la **Declanșatoare** (⏰
    15 minute, zilele trebuie să apară ocupate în calendarul de pe site.
 5. Șterge rezervările de test din foaia Rezervari.
 
-## 7. Limite de știut
+## 7. Panoul de admin (/admin)
+
+Pe adresa site-ului + `/admin` (ex. `https://site.ro/admin/`) gazda are:
+
+- **Cereri**: confirmă, refuză, anulează (oaspetele primește email automat), bifează „Avans primit”,
+  își scrie notițe; caută după nume, telefon sau email.
+- **Calendar**: ocuparea pe luni, pe camere (rezervări directe, Booking.com, blocări proprii).
+  Apasă pe prima și pe ultima noapte ca să **blochezi zile** (folosire proprie, rezervare la telefon);
+  apasă pe o zi blocată ca să o deblochezi. Blocările ajung și pe Booking.com, prin link-ul .ics.
+
+Pornire:
+1. În foaia **Setari**, pe un rând nou: `parolaAdmin` în coloana A și parola în coloana B
+   (cel puțin 8 caractere; la instalări noi rândul există deja).
+2. Lipește în Apps Script versiunea nouă a `Code.gs` și publică o **versiune nouă** a implementării
+   (Implementare → Gestionează implementările → ✏️ → Versiune nouă).
+3. Deschide `/admin` și intră cu parola. Parola se cere din nou la fiecare sesiune de browser.
+
+După 10 parole greșite, panoul se blochează 15 minute.
+
+## 8. Limite de știut
 
 - **Booking.com importă calendarul extern periodic, nu instant** (de obicei la câteva ore).
   De aceea cererile de pe site sunt confirmate de gazdă: înainte de Confirm, uită-te în extranet.

@@ -3,14 +3,18 @@
  * Folosește funcțiile pure din Core.gs (copie a fișierului core.js din site).
  *
  * Pași de instalare: README.md, secțiunea „Google”.
- * Funcții de rulat de mână din editor: setup(), creareDeclansator(), trimiteRevenire().
+ * Funcții de rulat de mână din editor: setup(), creareDeclansator(), trimiteRevenire(),
+ * testEmail(), testRezervare(). Panoul de admin (/admin pe site) cere parolaAdmin din Setari.
  */
 
-var FOI = { rez: 'Rezervari', blk: 'Blocari', set: 'Setari' };
+var FOI = { rez: 'Rezervari', blk: 'Blocari', man: 'BlocariManuale', set: 'Setari' };
 var COL_REZ = ['id', 'creat', 'status', 'checkIn', 'checkOut', 'unitati', 'tipuri', 'adulti', 'copii', 'nume', 'email',
-  'telefon', 'oraSosire', 'cereri', 'total', 'moneda', 'limba', 'acordOferte', 'token', 'expiraLa', 'notaBooking', 'revenireTrimisa'];
+  'telefon', 'oraSosire', 'cereri', 'total', 'moneda', 'limba', 'acordOferte', 'token', 'expiraLa', 'notaBooking', 'revenireTrimisa',
+  'avansPlatit', 'notaGazda'];
 var COL_BLK = ['unitate', 'deLa', 'panaLa', 'uid', 'importatLa'];
-var VERSIUNE = 1;
+// Zile blocate de gazdă din panoul de admin (folosire proprie, rezervări la telefon). Importul iCal nu le atinge.
+var COL_MAN = ['id', 'unitate', 'deLa', 'panaLa', 'motiv', 'creat'];
+var VERSIUNE = 2;
 
 // ============================================================ instalare
 
@@ -20,6 +24,7 @@ function setup() {
   ss.setSpreadsheetTimeZone('Europe/Bucharest');
   foaie(FOI.rez, COL_REZ);
   foaie(FOI.blk, COL_BLK);
+  foaie(FOI.man, COL_MAN);
   var s = ss.getSheetByName(FOI.set);
   if (!s) {
     s = ss.insertSheet(FOI.set);
@@ -33,6 +38,7 @@ function setup() {
       ['culoare', '#8a4a2e', '', '', ''],
       ['avans', '', '', '', ''],
       ['anulare', '', '', '', ''],
+      ['parolaAdmin', '', '', '', ''],
       ['mesajRevenire', 'Sezonul acesta avem din nou zile libere. Dacă rezervați direct, vorbiți cu noi, nu cu o platformă.', '', '', ''],
       ['', '', '', '', ''],
       ['# camere', 'id unitate (ca în site.config.js)', 'id tip', 'link iCal export din Booking.com', 'cheie .ics (nu o schimba)'],
@@ -49,7 +55,17 @@ function setup() {
 function foaie(nume, coloane) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var s = ss.getSheetByName(nume);
-  if (s) return s;
+  if (s) {
+    // Foaie creată de o versiune mai veche: adaugă la final coloanele care lipsesc
+    var head = s.getRange(1, 1, 1, Math.max(s.getLastColumn(), 1)).getValues()[0];
+    var lipsa = coloane.filter(function (c) { return head.indexOf(c) < 0; });
+    if (lipsa.length) {
+      var start = head.filter(String).length + 1;
+      s.getRange(1, start, 1, lipsa.length).setValues([lipsa]).setFontWeight('bold');
+      s.getRange(1, start, s.getMaxRows(), lipsa.length).setNumberFormat('@');
+    }
+    return s;
+  }
   s = ss.insertSheet(nume);
   s.getRange(1, 1, 1, coloane.length).setValues([coloane]).setFontWeight('bold');
   s.setFrozenRows(1);
@@ -85,6 +101,15 @@ function setari() {
   return out;
 }
 
+// Asigură foile și coloanele adăugate în versiuni noi (fără să mai rulezi setup)
+function pregateste() {
+  var c = CacheService.getScriptCache();
+  if (c.get('schema' + VERSIUNE)) return;
+  foaie(FOI.rez, COL_REZ);
+  foaie(FOI.man, COL_MAN);
+  c.put('schema' + VERSIUNE, '1', 600);
+}
+
 function cheieNoua() { return Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 8); }
 
 function azi() { return Utilities.formatDate(new Date(), 'Europe/Bucharest', 'yyyy-MM-dd'); }
@@ -117,8 +142,14 @@ function intervaleOcupate() {
   var out = {};
   var add = function (u, from, to) { (out[u] = out[u] || []).push({ from: String(from), to: String(to) }); };
   citeste(FOI.blk).rows.forEach(function (b) { if (b.unitate) add(String(b.unitate), b.deLa, b.panaLa); });
+  blocariManuale().forEach(function (b) { add(String(b.unitate), b.deLa, b.panaLa); });
   rezervariActive().forEach(function (r) { String(r.unitati).split(',').forEach(function (u) { if (u) add(u.trim(), r.checkIn, r.checkOut); }); });
   return out;
+}
+
+function blocariManuale() {
+  var s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(FOI.man);
+  return s ? citeste(FOI.man).rows.filter(function (b) { return b.unitate && b.deLa; }) : [];
 }
 
 // ============================================================ GET
@@ -144,7 +175,7 @@ function disponibilitate(p) {
     return { ok: false, error: 'invalid', message: 'Interval greșit.' };
   }
   var cache = CacheService.getScriptCache();
-  var cheie = 'av:' + from + ':' + to + ':' + (p.room || '');
+  var cheie = 'av' + (cache.get('av-gen') || '0') + ':' + from + ':' + to + ':' + (p.room || '');
   var c = cache.get(cheie);
   if (c) return JSON.parse(c);
   var ocupat = intervaleOcupate();
@@ -155,11 +186,12 @@ function disponibilitate(p) {
     busy[cam.unit] = Core.eachNight(from, to).filter(function (d) { return set[d]; });
   });
   var out = { ok: true, from: from, to: to, busy: busy };
-  cache.put(cheie, JSON.stringify(out), 60); // un minut; se golește la orice rezervare nouă
+  cache.put(cheie, JSON.stringify(out), 60); // un minut; se invalidează la orice schimbare
   return out;
 }
 
-function golesteCache() { CacheService.getScriptCache().removeAll(['av:' + azi() + ':' + Core.addDays(azi(), 400) + ':']); }
+// Orice schimbare de disponibilitate mută „generația”: toate răspunsurile din cache devin vechi
+function golesteCache() { CacheService.getScriptCache().put('av-gen', String(Date.now()), 21600); }
 
 // Calendarul .ics al unei camere, pentru importul în Booking.com (doar date, fără nume)
 function ics(p) {
@@ -167,7 +199,9 @@ function ics(p) {
   if (!cam || !cam.key || p.key !== cam.key) return ContentService.createTextOutput('Nu există').setMimeType(ContentService.MimeType.TEXT);
   var ev = rezervariActive().filter(function (r) {
     return String(r.unitati).split(',').indexOf(cam.unit) >= 0 && String(r.checkOut) >= azi();
-  }).map(function (r) { return { uid: r.id + '-' + cam.unit + '@rezervare-directa', from: String(r.checkIn), to: String(r.checkOut), summary: 'Rezervare directă' }; });
+  }).map(function (r) { return { uid: r.id + '-' + cam.unit + '@rezervare-directa', from: String(r.checkIn), to: String(r.checkOut), summary: 'Rezervare directă' }; })
+    .concat(blocariManuale().filter(function (b) { return String(b.unitate) === cam.unit && String(b.panaLa) >= azi(); })
+      .map(function (b) { return { uid: b.id + '@rezervare-directa', from: String(b.deLa), to: String(b.panaLa), summary: 'Blocat' }; }));
   var stamp = Utilities.formatDate(new Date(), 'UTC', "yyyyMMdd'T'HHmmss'Z'");
   return ContentService.createTextOutput(Core.buildICS(ev, setari().numeProprietate + ' – ' + cam.unit, stamp)).setMimeType(ContentService.MimeType.ICAL);
 }
@@ -178,7 +212,10 @@ function doPost(e) {
   var b;
   try { b = JSON.parse(e.postData.contents); } catch (err) { return json({ ok: false, error: 'invalid', message: 'Cerere greșită.' }); }
   if (b.website) return json({ ok: true, id: 'X', status: 'pending' }); // capcană anti-spam: nimic salvat
-  try { return json(rezerva(b)); } catch (err) {
+  try {
+    pregateste();
+    return json(b.action === 'admin' ? admin(b) : rezerva(b));
+  } catch (err) {
     console.error(err);
     return json({ ok: false, error: 'server', message: 'Nu am putut salva cererea.' });
   }
@@ -234,9 +271,10 @@ function rezerva(b) {
       telefon: clip(b.guest.phone, 40), oraSosire: clip(b.guest.arrival, 10), cereri: clip(b.guest.notes, 1000),
       total: typeof b.total === 'number' ? b.total : '', moneda: clip(b.currency, 8) || 'lei', limba: clip(b.lang, 5) || 'ro',
       acordOferte: b.consent && b.consent.offers === true ? 'da' : '', token: cheieNoua(),
-      expiraLa: new Date(Date.now() + cfg.oreExpirare * 3600000).toISOString(), notaBooking: nota, revenireTrimisa: ''
+      expiraLa: new Date(Date.now() + cfg.oreExpirare * 3600000).toISOString(), notaBooking: nota, revenireTrimisa: '',
+      avansPlatit: '', notaGazda: ''
     };
-    t.sheet.appendRow(COL_REZ.map(function (k) { return rez[k]; }));
+    t.sheet.appendRow(t.head.map(function (k) { return rez[k] == null ? '' : rez[k]; }));
     SpreadsheetApp.flush();
     golesteCache();
   } finally {
@@ -297,30 +335,49 @@ function paginaGazda(p) {
 
 // Apelată din pagina de mai sus (google.script.run)
 function actiuneGazda(id, token, action) {
+  var t = citeste(FOI.rez);
+  var r = t.rows.filter(function (x) { return x.id === id; })[0];
+  if (!r || !egal(token, r.token)) return 'Link invalid.';
+  var res = schimbaStatus(id, action === 'confirm' ? 'confirmata' : 'refuzata', true);
+  if (!res.ok) return res.message;
+  return res.status === 'confirmata' ? 'Gata: rezervarea e confirmată, oaspetele a primit emailul.' : 'Gata: cererea e refuzată, zilele sunt libere, oaspetele a primit emailul.';
+}
+
+var MESAJE_STATUS = {
+  confirmata: { subiect: 'Rezervare confirmată', titlu: 'Rezervarea ta e confirmată', mesaj: 'Te așteptăm! Mai jos ai detaliile și condițiile de avans.' },
+  refuzata: { subiect: 'Cererea nu a putut fi confirmată', titlu: 'Nu putem confirma cererea', mesaj: 'Ne pare rău, nu te putem primi în perioada aleasă. Zilele au fost eliberate; poți alege alte date pe site.' },
+  anulata: { subiect: 'Rezervare anulată', titlu: 'Rezervarea a fost anulată', mesaj: 'Rezervarea de mai jos a fost anulată. Pentru întrebări, răspunde la acest email sau sună-ne.' }
+};
+
+// Schimbă statusul unei rezervări (din emailul gazdei sau din panoul de admin) și anunță oaspetele
+function schimbaStatus(id, status, anunta) {
+  if (!MESAJE_STATUS[status]) return { ok: false, message: 'Status necunoscut.' };
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
-  var cfg = setari(), t = citeste(FOI.rez), r;
+  var cfg = setari(), r;
   try {
+    var t = citeste(FOI.rez);
     r = t.rows.filter(function (x) { return x.id === id; })[0];
-    if (!r || !egal(token, r.token)) return 'Link invalid.';
-    if (r.status === 'confirmata' && action === 'confirm') return 'Cererea era deja confirmată.';
-    if (r.status === 'refuzata') return 'Cererea era deja refuzată.';
-    if (r.status === 'expirata' && action === 'confirm') return 'Cererea a expirat și zilele au fost eliberate. Contactează oaspetele direct.';
-    r.status = action === 'confirm' ? 'confirmata' : 'refuzata';
-    scrieCelula(t, r._row, 'status', r.status);
+    if (!r) return { ok: false, message: 'Rezervarea nu există.' };
+    if (r.status === status) return { ok: false, message: 'Rezervarea are deja acest status.' };
+    if (r.status === 'refuzata' || r.status === 'anulata') return { ok: false, message: 'Rezervarea e ' + r.status + '; fă o rezervare nouă dacă e nevoie.' };
+    if (status === 'confirmata' && r.status === 'expirata') {
+      // a expirat: confirmăm doar dacă zilele sunt încă libere
+      var ocupat = intervaleOcupate();
+      var libere = String(r.unitati).split(',').every(function (u) { return Core.isFree(Core.busySet(ocupat[u.trim()]), String(r.checkIn), String(r.checkOut)); });
+      if (!libere) return { ok: false, message: 'Cererea a expirat și între timp zilele s-au ocupat. Contactează oaspetele.' };
+    }
+    if (status === 'anulata' && r.status !== 'confirmata') return { ok: false, message: 'Doar o rezervare confirmată se anulează; o cerere în așteptare se refuză.' };
+    r.status = status;
+    scrieCelula(t, r._row, 'status', status);
     SpreadsheetApp.flush();
     golesteCache();
   } finally { lock.releaseLock(); }
-
-  var confirma = r.status === 'confirmata';
-  trimite(r.email, 'email-confirmare', r.limba, (confirma ? 'Rezervare confirmată' : 'Cererea nu a putut fi confirmată') + ' – ' + cfg.numeProprietate, date(r, cfg, confirma ? {
-    titlu: 'Rezervarea ta e confirmată',
-    mesaj: 'Te așteptăm! Mai jos ai detaliile și condițiile de avans.'
-  } : {
-    titlu: 'Nu putem confirma cererea',
-    mesaj: 'Ne pare rău, nu te putem primi în perioada aleasă. Zilele au fost eliberate; poți alege alte date pe site.'
-  }), cfg.emailGazda);
-  return confirma ? 'Gata: rezervarea e confirmată, oaspetele a primit emailul.' : 'Gata: cererea e refuzată, zilele sunt libere, oaspetele a primit emailul.';
+  if (anunta) {
+    var m = MESAJE_STATUS[status];
+    trimite(r.email, 'email-confirmare', r.limba, m.subiect + ' – ' + cfg.numeProprietate, date(r, cfg, { titlu: m.titlu, mesaj: m.mesaj }), cfg.emailGazda);
+  }
+  return { ok: true, status: status };
 }
 
 function egal(a, b) {
@@ -329,6 +386,88 @@ function egal(a, b) {
   var d = 0;
   for (var i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return d === 0;
+}
+
+// ============================================================ panoul de admin (/admin pe site)
+
+// Toate cererile vin prin POST (parola nu ajunge în adrese sau în istoricul browserului).
+function admin(b) {
+  var cfg = setari();
+  var parola = String(cfg.parolaAdmin || '');
+  if (parola.length < 8) return { ok: false, error: 'setup', message: 'Panoul e oprit: pune în foaia Setari, la parolaAdmin, o parolă de cel puțin 8 caractere.' };
+  var cache = CacheService.getScriptCache();
+  var gresite = Number(cache.get('admin-gresit') || 0);
+  if (gresite >= 10) return { ok: false, error: 'blocat', message: 'Prea multe încercări greșite. Așteaptă 15 minute.' };
+  if (!egal(b.password, parola)) {
+    cache.put('admin-gresit', String(gresite + 1), 900);
+    Utilities.sleep(800);
+    return { ok: false, error: 'auth', message: 'Parolă greșită.' };
+  }
+  var op = b.op, t;
+  if (op === 'list') return adminLista(cfg);
+  if (op === 'status') {
+    var res = schimbaStatus(String(b.id), String(b.status), b.notify !== false);
+    return res.ok ? { ok: true } : { ok: false, error: 'status', message: res.message };
+  }
+  if (op === 'paid' || op === 'note') {
+    t = citeste(FOI.rez);
+    var r = t.rows.filter(function (x) { return x.id === b.id; })[0];
+    if (!r) return { ok: false, error: 'missing', message: 'Rezervarea nu există.' };
+    if (op === 'paid') scrieCelula(t, r._row, 'avansPlatit', b.value ? new Date().toISOString() : '');
+    else scrieCelula(t, r._row, 'notaGazda', clip(b.text, 1000));
+    return { ok: true };
+  }
+  if (op === 'block') return adminBlocheaza(cfg, b);
+  if (op === 'unblock') {
+    t = citeste(FOI.man);
+    var bl = t.rows.filter(function (x) { return x.id === b.id; })[0];
+    if (!bl) return { ok: false, error: 'missing', message: 'Blocarea nu există.' };
+    t.sheet.deleteRow(bl._row);
+    golesteCache();
+    return { ok: true };
+  }
+  return { ok: false, error: 'invalid', message: 'Operație necunoscută.' };
+}
+
+// Rezervările din ultimele 90 de zile și cele viitoare, blocările Booking și cele manuale
+function adminLista(cfg) {
+  var din = Core.addDays(azi(), -90), now = new Date().toISOString();
+  var rez = citeste(FOI.rez).rows.filter(function (r) { return r.id && String(r.checkOut) >= din; }).map(function (r) {
+    var o = {};
+    COL_REZ.forEach(function (k) { if (k !== 'token') o[k] = r[k] == null ? '' : String(r[k]); });
+    // o cerere „în așteptare” trecută de termen e expirată chiar dacă declanșatorul n-a rulat încă
+    if (o.status === 'asteptare' && o.expiraLa && o.expiraLa <= now) o.status = 'expirata';
+    return o;
+  });
+  var booking = citeste(FOI.blk).rows.filter(function (b) { return b.unitate && String(b.panaLa) >= din; })
+    .map(function (b) { return { unitate: String(b.unitate), deLa: String(b.deLa), panaLa: String(b.panaLa), importatLa: String(b.importatLa || '') }; });
+  var manuale = blocariManuale().filter(function (b) { return String(b.panaLa) >= din; })
+    .map(function (b) { return { id: String(b.id), unitate: String(b.unitate), deLa: String(b.deLa), panaLa: String(b.panaLa), motiv: String(b.motiv || '') }; });
+  return { ok: true, azi: azi(), rezervari: rez, booking: booking, manuale: manuale,
+    camere: cfg.camere.map(function (c) { return { unit: c.unit, type: c.type, ical: !!c.ical }; }),
+    emailuriRamase: MailApp.getRemainingDailyQuota() };
+}
+
+function adminBlocheaza(cfg, b) {
+  var unit = String(b.unit || '');
+  if (!cfg.camere.some(function (c) { return c.unit === unit; })) return { ok: false, error: 'invalid', message: 'Camera nu există.' };
+  if (!Core.isDate(b.from) || !Core.isDate(b.to) || b.to <= b.from) return { ok: false, error: 'invalid', message: 'Interval greșit.' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    // nu blocăm peste o rezervare directă activă: aceea se anulează sau se refuză
+    var peste = rezervariActive().filter(function (r) {
+      return String(r.unitati).split(',').indexOf(unit) >= 0 && Core.overlaps(b.from, b.to, String(r.checkIn), String(r.checkOut));
+    });
+    if (peste.length) return { ok: false, error: 'overlap', message: 'Intervalul se suprapune cu rezervarea ' + peste[0].id + ' (' + peste[0].nume + ').' };
+    var t = citeste(FOI.man);
+    var id = 'B' + cheieNoua().slice(0, 8).toUpperCase();
+    var row = { id: id, unitate: unit, deLa: b.from, panaLa: b.to, motiv: clip(b.reason, 200), creat: new Date().toISOString() };
+    t.sheet.appendRow(t.head.map(function (k) { return row[k] == null ? '' : row[k]; }));
+    SpreadsheetApp.flush();
+    golesteCache();
+    return { ok: true, id: id };
+  } finally { lock.releaseLock(); }
 }
 
 // ============================================================ iCal Booking.com

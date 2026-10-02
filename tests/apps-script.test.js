@@ -2,75 +2,8 @@
 // (Sheet, Lock, Cache, Mail, UrlFetch). Verifică fluxul complet fără cont Google.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const vm = require('node:vm');
-const crypto = require('node:crypto');
 
-const ROOT = path.join(__dirname, '..');
-
-function mediu({ ical = {} } = {}) {
-  const mails = [];
-  const sheets = {};
-  function sheet(name) {
-    const rows = [];
-    const s = {
-      name, rows,
-      getRange(r, c, nr = 1, nc = 1) {
-        return {
-          setValues(v) { v.forEach((row, i) => row.forEach((x, j) => { (rows[r - 1 + i] = rows[r - 1 + i] || [])[c - 1 + j] = x; })); return this; },
-          setValue(x) { (rows[r - 1] = rows[r - 1] || [])[c - 1] = x; return this; },
-          setFontWeight() { return this; }, setNumberFormat() { return this; },
-          clearContent() { for (let i = 0; i < nr; i++) for (let j = 0; j < nc; j++) if (rows[r - 1 + i]) rows[r - 1 + i][c - 1 + j] = ''; return this; },
-        };
-      },
-      getDataRange() {
-        const w = Math.max(...rows.map((r) => (r ? r.length : 0)), 1);
-        const used = rows.filter((r) => r && r.some((x) => x !== '' && x != null));
-        return { getValues: () => used.map((r) => Array.from({ length: w }, (_, i) => (r[i] == null ? '' : r[i]))) };
-      },
-      appendRow(v) { rows.push(v.slice()); },
-      getLastRow() { return rows.filter((r) => r && r.some((x) => x !== '' && x != null)).length; },
-      getMaxRows() { return 1000; }, setFrozenRows() {}, autoResizeColumns() {},
-    };
-    return s;
-  }
-  const ss = {
-    getSheetByName: (n) => sheets[n] || null,
-    insertSheet: (n) => (sheets[n] = sheet(n)),
-    getSheets: () => Object.values(sheets), deleteSheet() {}, setSpreadsheetTimeZone() {},
-  };
-  const cache = {};
-  const ctx = {
-    console: { log() {}, error() {} },
-    SpreadsheetApp: { getActiveSpreadsheet: () => ss, flush() {} },
-    LockService: { getScriptLock: () => ({ tryLock: () => true, waitLock() {}, releaseLock() {} }) },
-    CacheService: { getScriptCache: () => ({ get: (k) => cache[k] || null, put: (k, v) => { cache[k] = v; }, removeAll: (ks) => ks.forEach((k) => delete cache[k]) }) },
-    MailApp: { sendEmail: (o) => mails.push(o), getRemainingDailyQuota: () => 100 },
-    UrlFetchApp: { fetchAll: (reqs) => reqs.map((r) => ({ getResponseCode: () => (ical[r.url] ? 200 : 500), getContentText: () => ical[r.url] || '' })) },
-    HtmlService: {
-      createHtmlOutputFromFile: (n) => ({ getContent: () => fs.readFileSync(path.join(ROOT, 'apps-script', n + '.html'), 'utf8') }),
-      createHtmlOutput: (h) => ({ html: h, setTitle() { return this; }, addMetaTag() { return this; } }),
-    },
-    ContentService: { MimeType: { JSON: 'json', ICAL: 'ics', TEXT: 'text' }, createTextOutput: (t) => ({ text: t, setMimeType(m) { this.mime = m; return this; } }) },
-    Utilities: {
-      getUuid: () => crypto.randomUUID(),
-      formatDate: (d, tz, f) => {
-        const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
-          .formatToParts(d).map((x) => [x.type, x.value]));
-        return f.replace('yyyy', p.year).replace('yy', p.year.slice(2)).replace('MM', p.month).replace('dd', p.day)
-          .replace("'T'", 'T').replace('HH', p.hour).replace('mm', p.minute).replace('ss', p.second).replace("'Z'", 'Z');
-      },
-    },
-    Session: { getActiveUser: () => ({ getEmail: () => 'gazda@example.com' }) },
-    ScriptApp: { getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/X/exec' }), getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ everyMinutes: () => ({ create() {} }) }) }) },
-  };
-  vm.createContext(ctx);
-  vm.runInContext(fs.readFileSync(path.join(ROOT, 'core.js'), 'utf8').replace('var Core =', 'Core ='), ctx);
-  vm.runInContext(fs.readFileSync(path.join(ROOT, 'apps-script', 'Code.gs'), 'utf8'), ctx);
-  ctx.setup();
-  return { ctx, mails, sheets };
-}
+const { mediu } = require('./gas-mock.cjs');
 
 const post = (ctx, body) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(body) } }).text);
 const get = (ctx, p) => ctx.doGet({ parameter: p });
@@ -207,4 +140,77 @@ test('funcțiile de test din editor rulează', () => {
   assert.equal(mails.length, 2);
   ctx.testRezervare();
   assert.equal(mails.length, 4);
+});
+
+const adm = (ctx, op, extra = {}) => post(ctx, { action: 'admin', password: 'parola-lunga-1', op, ...extra });
+function cuParola(env) {
+  env.sheets.Setari.rows.find((r) => r && r[0] === 'parolaAdmin')[1] = 'parola-lunga-1';
+  return env;
+}
+
+test('admin: fără parolă setată e oprit; parolă greșită refuzată și limitată', () => {
+  const env = mediu();
+  assert.equal(adm(env.ctx, 'list').error, 'setup');
+  cuParola(env);
+  assert.equal(post(env.ctx, { action: 'admin', password: 'gresit', op: 'list' }).error, 'auth');
+  for (let i = 0; i < 10; i++) post(env.ctx, { action: 'admin', password: 'gresit', op: 'list' });
+  assert.equal(adm(env.ctx, 'list').error, 'blocat');
+});
+
+test('admin: lista fără token, confirmare, avans, notă, anulare', () => {
+  const env = cuParola(mediu());
+  const { ctx, mails } = env;
+  const { id } = post(ctx, cerere());
+  let l = adm(ctx, 'list');
+  assert.equal(l.ok, true);
+  assert.equal(l.rezervari.length, 1);
+  assert.equal(l.rezervari[0].token, undefined);
+  assert.deepEqual(l.camere.map((c) => c.unit), ['cabana']);
+  assert.equal(adm(ctx, 'status', { id, status: 'anulata' }).error, 'status'); // în așteptare nu se anulează
+  assert.equal(adm(ctx, 'status', { id, status: 'confirmata' }).ok, true);
+  assert.match(mails.at(-1).subject, /Rezervare confirmată/);
+  adm(ctx, 'paid', { id, value: true });
+  adm(ctx, 'note', { id, text: '=avans cash' });
+  l = adm(ctx, 'list');
+  assert.ok(l.rezervari[0].avansPlatit);
+  assert.equal(l.rezervari[0].notaGazda, "'=avans cash");
+  assert.equal(adm(ctx, 'status', { id, status: 'anulata' }).ok, true);
+  assert.match(mails.at(-1).subject, /anulată/);
+  const av = JSON.parse(get(ctx, { action: 'availability', from: plus(0), to: plus(30) }).text);
+  assert.deepEqual(av.busy.cabana, []);
+});
+
+test('admin: blocare manuală ocupă zilele, apare în .ics, nu se suprapune cu o rezervare, se șterge', () => {
+  const env = cuParola(mediu());
+  const { ctx, sheets } = env;
+  post(ctx, cerere());
+  assert.equal(adm(ctx, 'block', { unit: 'cabana', from: plus(11), to: plus(12) }).error, 'overlap');
+  assert.equal(adm(ctx, 'block', { unit: 'nu', from: plus(1), to: plus(2) }).error, 'invalid');
+  const b = adm(ctx, 'block', { unit: 'cabana', from: plus(20), to: plus(23), reason: 'familia' });
+  assert.equal(b.ok, true);
+  let av = JSON.parse(get(ctx, { action: 'availability', from: plus(0), to: plus(30) }).text);
+  assert.deepEqual(av.busy.cabana, [plus(10), plus(11), plus(12), plus(20), plus(21), plus(22)]);
+  const key = sheets.Setari.rows.find((r) => r && r[0] === 'camera')[4];
+  assert.match(get(ctx, { action: 'ical', room: 'cabana', key }).text, /SUMMARY:Blocat/);
+  // cererea de pe site pe zile blocate e refuzată
+  assert.equal(post(ctx, cerere({ checkIn: plus(21), checkOut: plus(22), guest: { name: 'X', email: 'x@example.com', phone: '0733123456' } })).error, 'unavailable');
+  // importul Booking.com nu șterge blocările manuale
+  ctx.importaToate();
+  assert.equal(adm(ctx, 'list').manuale.length, 1);
+  assert.equal(adm(ctx, 'unblock', { id: b.id }).ok, true);
+  av = JSON.parse(get(ctx, { action: 'availability', from: plus(0), to: plus(30) }).text);
+  assert.deepEqual(av.busy.cabana, [plus(10), plus(11), plus(12)]);
+});
+
+test('migrare: o foaie Rezervari veche primește coloanele noi', () => {
+  const env = mediu();
+  const head = env.sheets.Rezervari.rows[0];
+  head.splice(head.indexOf('avansPlatit'));       // ca la versiunea 1
+  env.ctx.foaie('Rezervari', env.ctx.COL_REZ || []);
+  env.ctx.pregateste();
+  // cache-ul de schemă e gol în testul nou, deci pregateste a rulat
+  const h = env.sheets.Rezervari.rows[0];
+  assert.ok(h.includes('avansPlatit') && h.includes('notaGazda'));
+  const { id } = post(env.ctx, cerere());
+  assert.ok(env.sheets.Rezervari.rows.find((r) => r && r[0] === id));
 });
