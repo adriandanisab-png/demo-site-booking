@@ -90,7 +90,7 @@
       '<div class="tabs" role="tablist">' + [['cereri', 'Cereri'], ['calendar', 'Calendar']].map(function (t) {
         return '<button role="tab" aria-selected="' + (st.tab === t[0]) + '" data-tab="' + t[0] + '">' + t[1] + (t[0] === 'cereri' && pending.length ? ' · ' + pending.length : '') + '</button>';
       }).join('') + '</div>' +
-      '<div class="a-actions"><button data-x="reload">Reîncarcă</button><a href="../" target="_blank">Site</a><button data-x="logout">Ieșire</button></div>' +
+      '<div class="a-actions"><button data-x="reload">Reîncarcă</button><a href="/" target="_blank">Site</a><button data-x="logout">Ieșire</button></div>' +
       '</div></header><main class="wrap">' +
       '<div class="stats">' +
         stat(pending.length, 'de confirmat') + stat(arriving.length, 'sosiri în 7 zile') +
