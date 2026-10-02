@@ -12,12 +12,14 @@ function mediu({ ical = {} } = {}) {
   const sheets = {};
   function sheet(name) {
     const rows = [];
+    // ca Sheets: fără apostrof, un text care arată a număr devine număr; cu apostrof rămâne text (fără apostrof)
+    const cell = (x) => (typeof x === 'string' && x.startsWith("'") ? x.slice(1) : typeof x === 'string' && /^\d+$/.test(x) ? Number(x) : x);
     const s = {
-      name, rows,
+      name, rows, raw: [],
       getRange(r, c, nr = 1, nc = 1) {
         return {
-          setValues(v) { v.forEach((row, i) => row.forEach((x, j) => { (rows[r - 1 + i] = rows[r - 1 + i] || [])[c - 1 + j] = x; })); return this; },
-          setValue(x) { (rows[r - 1] = rows[r - 1] || [])[c - 1] = x; return this; },
+          setValues(v) { v.forEach((row, i) => row.forEach((x, j) => { (rows[r - 1 + i] = rows[r - 1 + i] || [])[c - 1 + j] = cell(x); })); return this; },
+          setValue(x) { s.raw.push(x); (rows[r - 1] = rows[r - 1] || [])[c - 1] = cell(x); return this; },
           setFontWeight() { return this; }, setNumberFormat() { return this; },
           getValues() { return Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => ((rows[r - 1 + i] || [])[c - 1 + j] ?? ''))); },
           clearContent() { for (let i = 0; i < nr; i++) for (let j = 0; j < nc; j++) if (rows[r - 1 + i]) rows[r - 1 + i][c - 1 + j] = ''; return this; },
@@ -28,7 +30,7 @@ function mediu({ ical = {} } = {}) {
         const used = rows.filter((r) => r && r.some((x) => x !== '' && x != null));
         return { getValues: () => used.map((r) => Array.from({ length: w }, (_, i) => (r[i] == null ? '' : r[i]))) };
       },
-      appendRow(v) { rows.push(v.slice()); },
+      appendRow(v) { s.raw.push(...v); rows.push(v.map(cell)); },
       deleteRow(r) { rows.splice(r - 1, 1); },
       getLastColumn() { return Math.max(0, ...rows.map((r) => (r ? r.length : 0))); },
       getLastRow() { return rows.filter((r) => r && r.some((x) => x !== '' && x != null)).length; },

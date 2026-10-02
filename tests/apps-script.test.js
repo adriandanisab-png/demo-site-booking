@@ -129,9 +129,11 @@ test('formule: textul oaspetelui nu devine formulă în Sheets, telefonul +40 r�
   const { ctx, sheets } = mediu();
   const { id } = post(ctx, cerere({ guest: { name: '=HYPERLINK("x")', email: 'f@example.com', phone: '+40 722 123 456', notes: '@cmd' } }));
   const row = sheets.Rezervari.rows.find((r) => r && r[0] === id);
-  assert.equal(row[9], "'=HYPERLINK(\"x\")");
+  // scris cu apostrof → Sheets îl păstrează ca text, nu ca formulă
+  assert.ok(sheets.Rezervari.raw.includes("'=HYPERLINK(\"x\")"));
+  assert.equal(row[9], '=HYPERLINK("x")');
   assert.equal(row[11], '+40 722 123 456');
-  assert.equal(row[13], "'@cmd");
+  assert.equal(row[13], '@cmd');
 });
 
 test('funcțiile de test din editor rulează', () => {
@@ -173,7 +175,7 @@ test('admin: lista fără token, confirmare, avans, notă, anulare', () => {
   adm(ctx, 'note', { id, text: '=avans cash' });
   l = adm(ctx, 'list');
   assert.ok(l.rezervari[0].avansPlatit);
-  assert.equal(l.rezervari[0].notaGazda, "'=avans cash");
+  assert.equal(l.rezervari[0].notaGazda, '=avans cash');
   assert.equal(adm(ctx, 'status', { id, status: 'anulata' }).ok, true);
   assert.match(mails.at(-1).subject, /anulată/);
   const av = JSON.parse(get(ctx, { action: 'availability', from: plus(0), to: plus(30) }).text);
@@ -213,4 +215,14 @@ test('migrare: o foaie Rezervari veche primește coloanele noi', () => {
   assert.ok(h.includes('avansPlatit') && h.includes('notaGazda'));
   const { id } = post(env.ctx, cerere());
   assert.ok(env.sheets.Rezervari.rows.find((r) => r && r[0] === id));
+});
+
+test('Sheets nu transformă textul: copii, ora sosirii și telefonul rămân exact', () => {
+  const { ctx, sheets } = mediu();
+  const { id } = post(ctx, cerere({ children: [9, 1], guest: { name: 'Ianis', email: 'i@example.com', phone: '0724385355', arrival: '16:00', notes: '' } }));
+  const row = sheets.Rezervari.rows.find((r) => r && r[0] === id);
+  assert.equal(row[8], '9, 1');
+  assert.equal(row[11], '0724385355');
+  assert.equal(row[12], '16:00');
+  assert.equal(row[7], 2); // numerele rămân numere
 });

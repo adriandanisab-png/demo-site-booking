@@ -127,7 +127,12 @@ function citeste(nume) {
   }) };
 }
 
-function scrieCelula(t, row, col, val) { t.sheet.getRange(row, t.head.indexOf(col) + 1).setValue(val); }
+// Sheets „ghicește” tipul la scriere: „9, 1” devine dată, „16:00” oră, „0722…” număr fără 0.
+// Un apostrof în față păstrează textul exact; nu se vede în foaie și nu apare la citire.
+function text(v) { return typeof v === 'string' && v !== '' && v.charAt(0) !== "'" ? "'" + v : v; }
+function rand(head, o) { return head.map(function (k) { return o[k] == null ? '' : text(o[k]); }); }
+
+function scrieCelula(t, row, col, val) { t.sheet.getRange(row, t.head.indexOf(col) + 1).setValue(text(val)); }
 
 // Rezervările care țin zilele ocupate: confirmate sau în așteptare neexpirate
 function rezervariActive() {
@@ -277,7 +282,7 @@ function rezerva(b) {
       expiraLa: new Date(Date.now() + cfg.oreExpirare * 3600000).toISOString(), notaBooking: nota, revenireTrimisa: '',
       avansPlatit: '', notaGazda: ''
     };
-    t.sheet.appendRow(t.head.map(function (k) { return rez[k] == null ? '' : rez[k]; }));
+    t.sheet.appendRow(rand(t.head, rez));
     SpreadsheetApp.flush();
     golesteCache();
   } finally {
@@ -466,7 +471,7 @@ function adminBlocheaza(cfg, b) {
     var t = citeste(FOI.man);
     var id = 'B' + cheieNoua().slice(0, 8).toUpperCase();
     var row = { id: id, unitate: unit, deLa: b.from, panaLa: b.to, motiv: clip(b.reason, 200), creat: new Date().toISOString() };
-    t.sheet.appendRow(t.head.map(function (k) { return row[k] == null ? '' : row[k]; }));
+    t.sheet.appendRow(rand(t.head, row));
     SpreadsheetApp.flush();
     golesteCache();
     return { ok: true, id: id };
@@ -494,8 +499,8 @@ function importa(camere) {
   if (!units.length) return esuate;
   var t = citeste(FOI.blk), acum = new Date().toISOString();
   var pastrate = t.rows.filter(function (r) { return r.unitate && units.indexOf(String(r.unitate)) < 0; })
-    .map(function (r) { return COL_BLK.map(function (k) { return r[k]; }); });
-  units.forEach(function (u) { noi[u].forEach(function (ev) { pastrate.push([u, ev.from, ev.to, ev.uid, acum]); }); });
+    .map(function (r) { return COL_BLK.map(function (k) { return text(r[k] == null ? '' : String(r[k])); }); });
+  units.forEach(function (u) { noi[u].forEach(function (ev) { pastrate.push([u, ev.from, ev.to, ev.uid, acum].map(text)); }); });
   if (t.sheet.getLastRow() > 1) t.sheet.getRange(2, 1, t.sheet.getLastRow() - 1, COL_BLK.length).clearContent();
   if (pastrate.length) t.sheet.getRange(2, 1, pastrate.length, COL_BLK.length).setValues(pastrate);
   golesteCache();
