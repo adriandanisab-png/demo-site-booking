@@ -279,7 +279,8 @@
       '<label class="f">' + esc(t.notes) + ' <small>' + esc(t.optional) + '</small><textarea name="notes" maxlength="1000" placeholder="' + esc(t.notesPh) + '">' + esc(g.notes) + '</textarea></label>' +
       '<label class="check' + bad('consent') + '"><input type="checkbox" name="consentData"' + (st.consent.data ? ' checked' : '') + '><span>' + esc(t.consentData) + ' ' + privacy + '.</span></label>' + err('consent') +
       '<label class="check"><input type="checkbox" name="consentOffers"' + (st.consent.offers ? ' checked' : '') + '><span>' + esc(t.consentOffers) + '</span></label>' +
-      '<input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">' +
+      // capcană pentru boți; numele nu seamănă cu nimic ce completează automat browserul (un câmp „website” poate fi umplut de autofill)
+      '<input type="text" name="bk_hp_7f" tabindex="-1" autocomplete="off" data-lpignore="true" data-1p-ignore aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">' +
       (st.msg ? '<p class="err" role="alert">' + esc(st.msg) + '</p>' : '') +
       '</form>';
   }
@@ -388,7 +389,7 @@
     ['name', 'email', 'phone', 'arrival', 'notes'].forEach(function (k) { st.guest[k] = f.elements[k].value; });
     st.consent.data = f.elements.consentData.checked;
     st.consent.offers = f.elements.consentOffers.checked;
-    st.website = f.elements.website.value;
+    st.website = f.elements.bk_hp_7f.value;
   }
 
   function payload() {

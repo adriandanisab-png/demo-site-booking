@@ -43,7 +43,7 @@ function mediu({ ical = {} } = {}) {
   };
   const cache = {};
   const ctx = {
-    console: { log() {}, error() {} },
+    console: { log() {}, warn() {}, error() {} },
     SpreadsheetApp: { getActiveSpreadsheet: () => ss, flush() {} },
     LockService: { getScriptLock: () => ({ tryLock: () => true, waitLock() {}, releaseLock() {} }) },
     CacheService: { getScriptCache: () => ({ get: (k) => cache[k] || null, put: (k, v) => { cache[k] = v; }, removeAll: (ks) => ks.forEach((k) => delete cache[k]) }) },

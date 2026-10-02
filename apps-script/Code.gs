@@ -211,7 +211,10 @@ function ics(p) {
 function doPost(e) {
   var b;
   try { b = JSON.parse(e.postData.contents); } catch (err) { return json({ ok: false, error: 'invalid', message: 'Cerere greșită.' }); }
-  if (b.website) return json({ ok: true, id: 'X', status: 'pending' }); // capcană anti-spam: nimic salvat
+  if (b.website) { // capcană anti-spam: nimic salvat (se vede în Execuții)
+    console.warn('Cerere ignorată de capcana anti-spam: ' + String(b.website).slice(0, 80));
+    return json({ ok: true, id: 'X', status: 'pending' });
+  }
   try {
     pregateste();
     return json(b.action === 'admin' ? admin(b) : rezerva(b));
