@@ -333,3 +333,67 @@ test('emailuri: fără telefonul gazdei nu apare „sună la .”; camera apare 
   assert.match(env.mails.at(-1).htmlBody, /sună la <a href="tel:0722000111"/);
 });
 
+// ---- Google Calendar
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function cuCalendar(env) {
+  post(env.ctx, cerere({ checkIn: plus(60), checkOut: plus(62), guest: { name: 'Prima', email: 'p@example.com', phone: '0722123456' } })); // setările noi
+  env.ctx.creareCalendar();
+  const id = env.sheets.Setari.rows.find((r) => r && r[0] === 'calendarGoogle')[1];
+  return env.ctx.CalendarApp.getCalendarById(id);
+}
+
+test('calendar: creareCalendar leagă calendarul și pune rezervările ca evenimente de toată ziua', () => {
+  const env = cuParola(mediu());
+  const cal = cuCalendar(env);
+  assert.ok(cal);
+  assert.equal(cal.events.length, 1);
+  const ev = cal.events[0];
+  assert.match(ev.title, /^⏳ Cerere: Prima · 2 pers\.$/);
+  assert.equal(ymd(ev.start), plus(60));
+  assert.equal(ymd(ev.end), plus(62)); // ziua plecării, exclusiv (ca în Google Calendar)
+  assert.match(ev.description, /Telefon: 0722123456/);
+  // o a doua rulare nu dublează nimic
+  env.ctx.sincronizeazaCalendar();
+  assert.equal(cal.events.length, 1);
+});
+
+test('calendar: confirmarea schimbă titlul, refuzul șterge, blocarea apare imediat', () => {
+  const env = cuParola(mediu());
+  const cal = cuCalendar(env);
+  const id = env.sheets.Rezervari.rows[1][0];
+  adm(env.ctx, 'status', { id, status: 'confirmata' });
+  assert.equal(cal.events.length, 1);
+  assert.equal(cal.events[0].title, 'Prima · 2 pers.');
+  const b = adm(env.ctx, 'block', { unit: 'cabana', from: plus(70), to: plus(72), reason: 'familia' });
+  assert.ok(cal.events.some((e) => e.title === 'Blocat: familia'));
+  adm(env.ctx, 'unblock', { id: b.id });
+  assert.ok(!cal.events.some((e) => e.title.startsWith('Blocat')));
+  adm(env.ctx, 'status', { id, status: 'anulata' });
+  assert.equal(cal.events.length, 0);
+});
+
+test('calendar: cererea nouă de pe site apare imediat; evenimentele altora din calendar nu sunt atinse', () => {
+  const env = mediu();
+  const cal = cuCalendar(env);
+  cal.createAllDayEvent('Dentist', new Date(), new Date(Date.now() + 86400000)); // eveniment personal, fără tag
+  post(env.ctx, cerere({ checkIn: plus(80), checkOut: plus(83), guest: { name: 'Doi', email: 'd2@example.com', phone: '0733123456' } }));
+  assert.ok(cal.events.some((e) => e.title.includes('Doi')));
+  env.ctx.sincronizeazaCalendar();
+  assert.ok(cal.events.some((e) => e.title === 'Dentist'));
+});
+
+test('calendar: zilele din Booking.com apar, dar nu și ecoul propriilor rezervări', () => {
+  const env = mediu();
+  const cal = cuCalendar(env);
+  const r = env.sheets.Rezervari.rows[1];
+  env.sheets.Blocari.rows.push(['cabana', plus(90), plus(93), 'b1', '']);
+  env.sheets.Blocari.rows.push(['cabana', r[3], r[4], 'ecou', '']); // Booking întoarce rezervarea noastră
+  env.ctx.sincronizeazaCalendar();
+  assert.equal(cal.events.filter((e) => e.title === 'Booking.com').length, 1);
+});
+
+test('calendar: fără calendarGoogle în Setari nu se întâmplă nimic', () => {
+  const env = mediu();
+  assert.deepEqual({ ...env.ctx.sincronizeazaCalendar() }, { create: 0, sterse: 0 });
+});
+

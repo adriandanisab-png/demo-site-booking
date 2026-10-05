@@ -26,14 +26,16 @@ function mediu({ ical = {} } = {}) {
         };
       },
       getDataRange() {
-        const w = Math.max(...rows.map((r) => (r ? r.length : 0)), 1);
-        const used = rows.filter((r) => r && r.some((x) => x !== '' && x != null));
+        const w = Math.max(...Array.from(rows, (r) => (r ? r.length : 0)), 1); // Array.from: fără găuri în tablou
+        // ca în Sheets: de la primul rând până la ultimul cu conținut, inclusiv rândurile goale dintre ele
+        const used = Array.from(rows.slice(0, s.getLastRow()), (r) => r || []);
         return { getValues: () => used.map((r) => Array.from({ length: w }, (_, i) => (r[i] == null ? '' : r[i]))) };
       },
       appendRow(v) { s.raw.push(...v); rows.push(v.map(cell)); },
       deleteRow(r) { rows.splice(r - 1, 1); },
-      getLastColumn() { return Math.max(0, ...rows.map((r) => (r ? r.length : 0))); },
-      getLastRow() { return rows.filter((r) => r && r.some((x) => x !== '' && x != null)).length; },
+      getLastColumn() { return Math.max(0, ...Array.from(rows, (r) => (r ? r.length : 0))); },
+      // ca în Sheets: numărul ultimului rând cu conținut (rândurile goale din mijloc contează)
+      getLastRow() { let n = 0; rows.forEach((r, i) => { if (r && r.some((x) => x !== '' && x != null)) n = i + 1; }); return n; },
       getMaxRows() { return 1000; }, setFrozenRows() {}, autoResizeColumns() {},
     };
     return s;
@@ -58,6 +60,9 @@ function mediu({ ical = {} } = {}) {
     ContentService: { MimeType: { JSON: 'json', ICAL: 'ics', TEXT: 'text' }, createTextOutput: (t) => ({ text: t, setMimeType(m) { this.mime = m; return this; } }) },
     Utilities: {
       sleep() {},
+      DigestAlgorithm: { MD5: 'md5' }, Charset: { UTF_8: 'utf8' },
+      computeDigest: (alg, s) => [...crypto.createHash(alg).update(s, 'utf8').digest()],
+      base64Encode: (bytes) => Buffer.from(bytes).toString('base64'),
       getUuid: () => crypto.randomUUID(),
       formatDate: (d, tz, f) => {
         if (f === 'H') return String(ctx.__ora != null ? ctx.__ora : Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hour12: false }).format(d)));
@@ -65,6 +70,29 @@ function mediu({ ical = {} } = {}) {
           .formatToParts(d).map((x) => [x.type, x.value]));
         return f.replace('yyyy', p.year).replace('yy', p.year.slice(2)).replace('MM', p.month).replace('dd', p.day)
           .replace("'T'", 'T').replace('HH', p.hour).replace('mm', p.minute).replace('ss', p.second).replace("'Z'", 'Z');
+      },
+    },
+    CalendarApp: {
+      Color: { BROWN: 'brown' },
+      calendars: {},
+      getCalendarById(id) { return this.calendars[id] || null; },
+      createCalendar(name) {
+        const id = 'cal' + Object.keys(this.calendars).length + '@group.calendar.google.com';
+        const events = [];
+        const cal = {
+          events, getId: () => id, getName: () => name,
+          createAllDayEvent(title, start, end, opt) {
+            const tags = {};
+            const ev = { title, start, end, description: (opt || {}).description, tags,
+              getTag: (k) => tags[k] ?? null, setTag(k, v) { tags[k] = String(v); return ev; },
+              deleteEvent() { events.splice(events.indexOf(ev), 1); } };
+            events.push(ev);
+            return ev;
+          },
+          getEvents(a, b) { return events.filter((e) => e.start < b && e.end > a); },
+        };
+        this.calendars[id] = cal;
+        return cal;
       },
     },
     Session: { getActiveUser: () => ({ getEmail: () => 'gazda@example.com' }) },

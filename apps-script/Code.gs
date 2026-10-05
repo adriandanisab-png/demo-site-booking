@@ -14,7 +14,7 @@ var COL_REZ = ['id', 'creat', 'status', 'checkIn', 'checkOut', 'unitati', 'tipur
 var COL_BLK = ['unitate', 'deLa', 'panaLa', 'uid', 'importatLa'];
 // Zile blocate de gazdă din panoul de admin (folosire proprie, rezervări la telefon). Importul iCal nu le atinge.
 var COL_MAN = ['id', 'unitate', 'deLa', 'panaLa', 'motiv', 'creat'];
-var VERSIUNE = 3;
+var VERSIUNE = 4;
 
 // Setări adăugate în versiuni noi: apar singure la finalul foii Setari, cu explicația în coloana C
 var SETARI_NOI = [
@@ -22,7 +22,8 @@ var SETARI_NOI = [
   ['zileInainteSosire', 2, 'cu câte zile înainte de sosire pleacă emailul cu informații'],
   ['infoSosire', '', 'ce primește oaspetele înainte de sosire: drum, check-in, Wi-Fi, reguli (pe mai multe rânduri: Alt+Enter)'],
   ['linkHarta', '', 'link Google Maps către proprietate'],
-  ['linkRecenzie', '', 'link spre recenzia pe Google; fără el, emailul de după plecare nu pleacă']
+  ['linkRecenzie', '', 'link spre recenzia pe Google; fără el, emailul de după plecare nu pleacă'],
+  ['calendarGoogle', '', 'ID-ul calendarului Google în care apar rezervările; îl completează singură funcția creareCalendar']
 ];
 
 // ============================================================ instalare
@@ -96,6 +97,7 @@ function laFiecare15Minute() {
   importaToate();
   expiraCereri();
   emailuriSejur();
+  sincronizeazaCalendar();
 }
 
 // ============================================================ setări
@@ -330,6 +332,7 @@ function rezerva(b) {
     if (rr) scrieCelula(tr, rr._row, 'notaBooking', (nota ? nota + ' ' : '') + 'EMAIL EȘUAT: ' + err.message);
   }
 
+  calendarDupaSchimbare();
   return { ok: true, id: rez.id, status: 'pending', expiresAt: rez.expiraLa };
 }
 
@@ -408,6 +411,7 @@ function schimbaStatus(id, status, anunta) {
     var m = MESAJE_STATUS[status];
     trimite(r.email, 'email-confirmare', r.limba, m.subiect + ' – ' + cfg.numeProprietate, date(r, cfg, { titlu: m.titlu, mesaj: m.mesaj }), cfg.emailGazda);
   }
+  calendarDupaSchimbare();
   return { ok: true, status: status };
 }
 
@@ -448,7 +452,11 @@ function admin(b) {
     else scrieCelula(t, r._row, 'notaGazda', clip(b.text, 1000));
     return { ok: true };
   }
-  if (op === 'block') return adminBlocheaza(cfg, b);
+  if (op === 'block') {
+    var rb = adminBlocheaza(cfg, b);
+    if (rb.ok) calendarDupaSchimbare();
+    return rb;
+  }
   if (op === 'sejur') {
     t = citeste(FOI.rez);
     var rs = t.rows.filter(function (x) { return x.id === b.id; })[0];
@@ -463,6 +471,7 @@ function admin(b) {
     if (!bl) return { ok: false, error: 'missing', message: 'Blocarea nu există.' };
     t.sheet.deleteRow(bl._row);
     golesteCache();
+    calendarDupaSchimbare();
     return { ok: true };
   }
   return { ok: false, error: 'invalid', message: 'Operație necunoscută.' };
@@ -508,6 +517,101 @@ function adminBlocheaza(cfg, b) {
     golesteCache();
     return { ok: true, id: id };
   } finally { lock.releaseLock(); }
+}
+
+// ============================================================ Google Calendar
+
+// Rulează o dată din editor: creează calendarul „Rezervări <nume>” în contul tău, îl leagă (Setari →
+// calendarGoogle) și îl umple. Prima rulare cere și permisiunea pentru Calendar.
+function creareCalendar() {
+  pregateste();
+  var cfg = setari();
+  var cal = cfg.calendarGoogle && CalendarApp.getCalendarById(String(cfg.calendarGoogle));
+  if (!cal) {
+    cal = CalendarApp.createCalendar('Rezervări ' + cfg.numeProprietate, { timeZone: 'Europe/Bucharest', color: CalendarApp.Color.BROWN });
+    var s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(FOI.set);
+    var v = s.getDataRange().getValues();
+    for (var i = 0; i < v.length; i++) if (String(v[i][0]).trim() === 'calendarGoogle') { s.getRange(i + 1, 2).setValue(text(cal.getId())); break; }
+  }
+  var n = sincronizeazaCalendar();
+  console.log('Calendar: „' + cal.getName() + '”. ' + JSON.stringify(n) + '. Îl găsești în Google Calendar, la „Calendarele mele”.');
+}
+
+// După o rezervare, confirmare, anulare sau blocare: actualizează calendarul imediat (fără să strice operația dacă eșuează)
+function calendarDupaSchimbare() {
+  try { sincronizeazaCalendar(); } catch (err) { console.error('Sincronizare calendar eșuată', err); }
+}
+
+// Evenimentele care trebuie să existe: rezervări directe active, blocări proprii, zile din Booking.com
+function evenimenteDorite(cfg) {
+  var din = Core.addDays(azi(), -30), multe = cfg.camere.length > 1, out = [];
+  var cam = function (u) { return multe ? u + ' · ' : ''; };
+  rezervariActive().filter(function (r) { return String(r.checkOut) >= din; }).forEach(function (r) {
+    var pers = Number(r.adulti || 0) + String(r.copii || '').split(',').filter(function (x) { return x.trim() !== ''; }).length;
+    var desc = [
+      r.status === 'asteptare' ? 'CERERE NECONFIRMATĂ – expiră ' + String(r.expiraLa).slice(0, 16).replace('T', ' ') + ' (UTC)' : 'Confirmată',
+      'Telefon: ' + r.telefon, 'Email: ' + r.email,
+      'Oaspeți: ' + r.adulti + ' adulți' + (r.copii ? ', copii: ' + r.copii + ' ani' : ''),
+      r.oraSosire ? 'Sosire: ~' + r.oraSosire : '',
+      r.total !== '' && r.total != null ? 'Total estimat: ' + r.total + ' ' + r.moneda : '',
+      r.avansPlatit ? 'Avans primit' : 'Avans: neîncasat',
+      r.cereri ? 'Cereri: ' + r.cereri : '', r.notaGazda ? 'Notițe: ' + r.notaGazda : '',
+      'Nr. cerere: ' + r.id
+    ].filter(Boolean).join('\n');
+    String(r.unitati).split(',').filter(Boolean).forEach(function (u) {
+      u = u.trim();
+      out.push({ cheie: 'rez:' + r.id + ':' + u, from: String(r.checkIn), to: String(r.checkOut), desc: desc,
+        titlu: cam(u) + (r.status === 'asteptare' ? '⏳ Cerere: ' : '') + r.nume + ' · ' + pers + ' pers.' });
+    });
+  });
+  blocariManuale().filter(function (b) { return String(b.panaLa) >= din; }).forEach(function (b) {
+    out.push({ cheie: 'man:' + b.id, from: String(b.deLa), to: String(b.panaLa), titlu: cam(String(b.unitate)) + 'Blocat' + (b.motiv ? ': ' + b.motiv : ''), desc: 'Blocat din panoul de admin.' });
+  });
+  citeste(FOI.blk).rows.filter(function (b) { return b.unitate && String(b.panaLa) >= din; }).forEach(function (b) {
+    var u = String(b.unitate);
+    out.push({ cheie: 'bk:' + u + ':' + b.deLa + ':' + b.panaLa, from: String(b.deLa), to: String(b.panaLa), titlu: cam(u) + 'Booking.com', desc: 'Ocupat pe Booking.com (din calendarul iCal). Detaliile sunt în extranet.' });
+  });
+  // un interval de pe Booking.com identic cu o rezervare directă e chiar rezervarea noastră, întoarsă de Booking
+  var directe = {};
+  out.forEach(function (e) { if (e.cheie.indexOf('rez:') === 0) directe[e.cheie.split(':')[2] + ':' + e.from + ':' + e.to] = true; });
+  return out.filter(function (e) { return e.cheie.indexOf('bk:') !== 0 || !directe[e.cheie.slice(3)]; });
+}
+
+// Rezumat scurt al conținutului unui eveniment (tag-urile au lungime limitată)
+function semnatura(s) {
+  return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, s, Utilities.Charset.UTF_8));
+}
+
+function dataLocala(iso) { return new Date(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)); }
+
+// Aduce calendarul Google la zi: creează ce lipsește, refă ce s-a schimbat, șterge ce nu mai există.
+// Atinge doar evenimentele create de script (marcate cu tag-ul „rezervare”); restul calendarului rămâne neatins.
+function sincronizeazaCalendar() {
+  var cfg = setari(), n = { create: 0, sterse: 0 };
+  if (!cfg.calendarGoogle) return n;
+  var cal = CalendarApp.getCalendarById(String(cfg.calendarGoogle));
+  if (!cal) { console.warn('Calendarul din Setari (calendarGoogle) nu există sau nu e al tău.'); return n; }
+  var dorite = {};
+  evenimenteDorite(cfg).forEach(function (e) { e.sig = semnatura([e.titlu, e.desc, e.from, e.to].join('|')); dorite[e.cheie] = e; });
+  var existente = cal.getEvents(dataLocala(Core.addDays(azi(), -60)), dataLocala(Core.addDays(azi(), 500)));
+  var vazute = {};
+  existente.forEach(function (ev) {
+    var cheie = ev.getTag('rezervare');
+    if (!cheie) return;
+    var d = dorite[cheie];
+    if (d && !vazute[cheie] && ev.getTag('sig') === d.sig) { vazute[cheie] = true; return; }
+    ev.deleteEvent(); // anulată, refuzată, expirată, deblocată, mutată sau duplicat
+    n.sterse++;
+  });
+  Object.keys(dorite).forEach(function (k) {
+    if (vazute[k]) return;
+    var d = dorite[k];
+    var ev = cal.createAllDayEvent(d.titlu, dataLocala(d.from), dataLocala(d.to), { description: d.desc });
+    ev.setTag('rezervare', k);
+    ev.setTag('sig', d.sig);
+    n.create++;
+  });
+  return n;
 }
 
 // ============================================================ iCal Booking.com

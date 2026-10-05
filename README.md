@@ -135,7 +135,29 @@ la finalul foii Setari, cu explicații în coloana C. Pentru mai multe rânduri 
 În `/admin`, la fiecare rezervare confirmată, vezi dacă emailurile au plecat și le poți trimite manual.
 Emailurile pleacă din declanșatorul de 15 minute (pasul 5), deci acesta trebuie să fie activ.
 
-## 9. Limite de știut
+## 9. Rezervările în Google Calendar
+
+Scriptul ține la zi un calendar Google separat, „Rezervări <nume>”, în contul proprietarului:
+rezervări confirmate (nume, nr. persoane), cereri în așteptare (⏳), zilele blocate din admin și zilele
+ocupate pe Booking.com. Fiecare eveniment ține toată durata sejurului și are în descriere telefonul,
+emailul, totalul, avansul și cererile oaspetelui. O cerere refuzată, anulată sau expirată dispare singură.
+
+Pornire (o singură dată):
+1. Lipește versiunea nouă a `Code.gs` și publică o **versiune nouă** a implementării.
+2. În editor, alege funcția `creareCalendar` → **Rulează** → acceptă permisiunea pentru Calendar.
+   Calendarul se creează, se trece singur în Setari (`calendarGoogle`) și se umple.
+3. Pe telefon apare în aplicația Google Calendar (sau în Calendar pe iPhone, dacă contul Google e adăugat).
+
+Se actualizează imediat la fiecare cerere, confirmare, anulare sau blocare și, pentru Booking.com,
+la fiecare 15 minute. Scriptul atinge doar evenimentele create de el; restul calendarului rămâne neatins.
+
+**Pentru echipa de curățenie**: Google Calendar → calendarul „Rezervări …” → ⋮ → Setări și permisiuni
+→ Permite accesul unor persoane → adresa lor, cu „Să vadă toate detaliile evenimentelor” (văd și
+telefoanele oaspeților) sau „Să vadă doar dacă e liber / ocupat”.
+
+Ce scrii direct în Google Calendar **nu** blochează zile pe site; pentru asta folosește panoul `/admin`.
+
+## 10. Limite de știut
 
 - **Booking.com importă calendarul extern periodic, nu instant** (de obicei la câteva ore).
   De aceea cererile de pe site sunt confirmate de gazdă: înainte de Confirm, uită-te în extranet.
