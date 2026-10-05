@@ -397,7 +397,7 @@
     return {
       action: 'book', lang: A.lang, checkIn: st.checkIn, checkOut: st.checkOut,
       adults: st.adults, children: st.children.slice(),
-      rooms: lines().map(function (x) { return { type: x.room.id, qty: x.qty, extraBeds: x.extraBeds }; }),
+      rooms: lines().map(function (x) { return { type: x.room.id, name: L(x.room.name), qty: x.qty, extraBeds: x.extraBeds }; }),
       total: p ? p.total : null, currency: cur,
       guest: { name: st.guest.name.trim(), email: st.guest.email.trim(), phone: st.guest.phone.trim(), arrival: st.guest.arrival, notes: st.guest.notes.trim() },
       consent: { data: st.consent.data, offers: st.consent.offers }, website: st.website || ''
@@ -441,6 +441,7 @@
       nopti: nights(), oaspeti: guestsText(), camere: l.map(function (x) { return (x.qty > 1 ? x.qty + ' × ' : '') + L(x.room.name); }).join(', '),
       total: p && p.total != null ? money(p.total) : '[PREȚ]', avans: L(B.deposit) || '[AVANS]', anulare: L(B.cancellation) || '[POLITICĂ DE ANULARE]',
       oreConfirmare: B.confirmHours || '[ORE]', telefonGazda: (S.contact && S.contact.phone) || '[TELEFON]', emailGazda: (S.contact && S.contact.email) || '[EMAIL]',
+      contactGazda: 'Răspunde la acest email sau sună la ' + esc((S.contact && S.contact.phone) || '[TELEFON]') + '.',
       oraSosire: st.guest.arrival || '—', cereri: st.guest.notes || '—', telefon: st.guest.phone, email: st.guest.email, id: st.done.id,
       linkConfirm: '#', linkRefuz: '#', notaBooking: '',
       titlu: 'Am primit cererea ta', mesaj: 'Gazda o verifică și îți răspunde în cel mult ' + (B.confirmHours || '[ORE]') + ' ore. Până atunci, zilele sunt păstrate pentru tine.', culoare: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#8a4a2e'

@@ -60,6 +60,7 @@ function mediu({ ical = {} } = {}) {
       sleep() {},
       getUuid: () => crypto.randomUUID(),
       formatDate: (d, tz, f) => {
+        if (f === 'H') return String(ctx.__ora != null ? ctx.__ora : Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hour12: false }).format(d)));
         const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
           .formatToParts(d).map((x) => [x.type, x.value]));
         return f.replace('yyyy', p.year).replace('yy', p.year.slice(2)).replace('MM', p.month).replace('dd', p.day)

@@ -142,9 +142,25 @@
       (r.cereri ? '<div class="c-notes">' + esc(r.cereri) + '</div>' : '') +
       (r.notaBooking ? '<div class="c-warn">' + esc(r.notaBooking) + '</div>' : '') +
       (actions ? '<div class="c-actions">' + actions + '</div>' : '') +
+      (r.status === 'confirmata' ? sejur(r) : '') +
       (r.status === 'confirmata' || r.status === 'asteptare' ? '<div class="c-foot"><label class="check"><input type="checkbox" data-paid="' + esc(r.id) + '"' + (r.avansPlatit ? ' checked' : '') + '> Avans primit' + (r.avansPlatit ? ' <span class="hint">(' + esc(dt(r.avansPlatit)) + ')</span>' : '') + '</label>' +
         '<textarea data-note="' + esc(r.id) + '" placeholder="Notițe pentru tine (nu le vede oaspetele)">' + esc(r.notaGazda) + '</textarea></div>' : '') +
       '</article>';
+  }
+
+  // Emailurile automate din jurul sejurului: ce a plecat, ce urmează, buton de trimitere manuală
+  function sejur(r) {
+    var s = st.data.sejur || {}, azi = st.data.azi;
+    var linie = function (kind, sent, label, cand, ok, lipsa) {
+      var stare = sent ? 'trimis ' + dt(sent) : !s.activ ? 'oprit din Setari' : !ok ? 'lipsește ' + lipsa + ' în Setari' : cand;
+      return '<span class="mail-st' + (sent ? ' sent' : '') + '">' + esc(label) + ': ' + esc(stare) +
+        (ok ? ' <button class="linkish" data-sejur="' + esc(kind) + '" data-id="' + esc(r.id) + '">' + (sent ? 'retrimite' : 'trimite acum') + '</button>' : '') + '</span>';
+    };
+    var zi = Core.addDays(r.checkIn, -(s.zile || 2));
+    return '<div class="c-mails">' +
+      linie('sosire', r.preSosireTrimis, 'Email înainte de sosire', 'pleacă pe ' + fmt(zi < azi ? azi : zi), s.info, 'infoSosire') +
+      linie('recenzie', r.recenzieTrimis, 'Cerere de recenzie', 'pleacă pe ' + fmt(Core.addDays(r.checkOut, 1)), s.recenzie, 'linkRecenzie') +
+      '</div>';
   }
 
   // ---- calendar: un rând pe cameră, o coloană pe noapte
@@ -224,6 +240,10 @@
     }
     else if (ds.cell) cellClick(ds.cell.split('|')[0], ds.cell.split('|')[1]);
     else if (ds.open) { st.tab = 'cereri'; st.filter = 'toate'; st.q = ds.open; st.info = null; draw(); }
+    else if (ds.sejur) {
+      var what = ds.sejur === 'sosire' ? 'emailul cu informații de sosire' : 'cererea de recenzie';
+      if (confirm('Trimiți acum ' + what + '?')) act('sejur', { id: ds.id, kind: ds.sejur }, 'Email trimis.');
+    }
     else if (ds.unblock) { if (confirm('Deblochezi aceste zile?')) { st.info = null; act('unblock', { id: ds.unblock }, 'Zilele sunt libere.'); } }
     else if (ds.x === 'reload') load().then(function () { toast('Actualizat.'); }).catch(function () {});
     else if (ds.x === 'logout') logout();

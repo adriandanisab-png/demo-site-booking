@@ -119,7 +119,23 @@ Pornire:
 
 După 10 parole greșite, panoul se blochează 15 minute.
 
-## 8. Limite de știut
+## 8. Emailuri automate înainte de sosire și după plecare
+
+Pentru rezervările **confirmate**, scriptul trimite singur (o singură dată, între 9 și 20):
+
+- **înainte de sosire** (implicit cu 2 zile): textul din `infoSosire` — drumul, ora de check-in,
+  Wi-Fi, unde e cheia, regulile casei — plus butonul de hartă, dacă e completat `linkHarta`;
+- **a doua zi după plecare**: un mulțumesc și butonul spre recenzie, dacă e completat `linkRecenzie`
+  (în Google Business Profile → „Cere recenzii” → copiezi link-ul).
+
+Rândurile `emailuriSejur`, `zileInainteSosire`, `infoSosire`, `linkHarta`, `linkRecenzie` apar singure
+la finalul foii Setari, cu explicații în coloana C. Pentru mai multe rânduri în `infoSosire`: Alt+Enter
+(pe Mac: ⌥+Enter) în celulă. `emailuriSejur` = `nu` oprește ambele emailuri.
+
+În `/admin`, la fiecare rezervare confirmată, vezi dacă emailurile au plecat și le poți trimite manual.
+Emailurile pleacă din declanșatorul de 15 minute (pasul 5), deci acesta trebuie să fie activ.
+
+## 9. Limite de știut
 
 - **Booking.com importă calendarul extern periodic, nu instant** (de obicei la câteva ore).
   De aceea cererile de pe site sunt confirmate de gazdă: înainte de Confirm, uită-te în extranet.

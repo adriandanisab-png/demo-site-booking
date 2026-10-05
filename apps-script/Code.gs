@@ -10,11 +10,20 @@
 var FOI = { rez: 'Rezervari', blk: 'Blocari', man: 'BlocariManuale', set: 'Setari' };
 var COL_REZ = ['id', 'creat', 'status', 'checkIn', 'checkOut', 'unitati', 'tipuri', 'adulti', 'copii', 'nume', 'email',
   'telefon', 'oraSosire', 'cereri', 'total', 'moneda', 'limba', 'acordOferte', 'token', 'expiraLa', 'notaBooking', 'revenireTrimisa',
-  'avansPlatit', 'notaGazda'];
+  'avansPlatit', 'notaGazda', 'preSosireTrimis', 'recenzieTrimis'];
 var COL_BLK = ['unitate', 'deLa', 'panaLa', 'uid', 'importatLa'];
 // Zile blocate de gazdă din panoul de admin (folosire proprie, rezervări la telefon). Importul iCal nu le atinge.
 var COL_MAN = ['id', 'unitate', 'deLa', 'panaLa', 'motiv', 'creat'];
-var VERSIUNE = 2;
+var VERSIUNE = 3;
+
+// Setări adăugate în versiuni noi: apar singure la finalul foii Setari, cu explicația în coloana C
+var SETARI_NOI = [
+  ['emailuriSejur', 'da', 'da = trimite automat emailul dinainte de sosire și pe cel de după plecare; nu = oprit'],
+  ['zileInainteSosire', 2, 'cu câte zile înainte de sosire pleacă emailul cu informații'],
+  ['infoSosire', '', 'ce primește oaspetele înainte de sosire: drum, check-in, Wi-Fi, reguli (pe mai multe rânduri: Alt+Enter)'],
+  ['linkHarta', '', 'link Google Maps către proprietate'],
+  ['linkRecenzie', '', 'link spre recenzia pe Google; fără el, emailul de după plecare nu pleacă']
+];
 
 // ============================================================ instalare
 
@@ -83,8 +92,10 @@ function creareDeclansator() {
 }
 
 function laFiecare15Minute() {
+  pregateste();
   importaToate();
   expiraCereri();
+  emailuriSejur();
 }
 
 // ============================================================ setări
@@ -107,7 +118,17 @@ function pregateste() {
   if (c.get('schema' + VERSIUNE)) return;
   foaie(FOI.rez, COL_REZ);
   foaie(FOI.man, COL_MAN);
+  setariLipsa();
   c.put('schema' + VERSIUNE, '1', 600);
+}
+
+function setariLipsa() {
+  var s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(FOI.set);
+  var chei = s.getDataRange().getValues().map(function (r) { return String(r[0]).trim(); });
+  var lipsa = SETARI_NOI.filter(function (x) { return chei.indexOf(x[0]) < 0; });
+  if (!lipsa.length) return;
+  var start = s.getLastRow() + 2; // un rând gol înainte, ca să se vadă că sunt noi
+  s.getRange(start, 1, lipsa.length, 3).setValues(lipsa.map(function (x) { return [x[0], x[1], x[2]]; }));
 }
 
 function cheieNoua() { return Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 8); }
@@ -274,7 +295,9 @@ function rezerva(b) {
     rez = {
       id: 'R' + Utilities.formatDate(new Date(), 'Europe/Bucharest', 'yyMMdd') + '-' + cheieNoua().slice(0, 4).toUpperCase(),
       creat: new Date().toISOString(), status: 'asteptare', checkIn: b.checkIn, checkOut: b.checkOut,
-      unitati: unitati.join(','), tipuri: b.rooms.map(function (r) { return r.type + '×' + r.qty; }).join(', '),
+      // numele camerei vine de la site (doar pentru afișare); id-ul tipului e verificat mai sus
+      unitati: unitati.join(','), tipuri: b.rooms.map(function (r) { return clip(r.name, 60).replace(/^'/, '') || r.type; })
+        .map(function (n, i) { return b.rooms[i].qty > 1 ? b.rooms[i].qty + ' × ' + n : n; }).join(', '),
       adulti: b.adults, copii: (b.children || []).join(', '), nume: clip(b.guest.name, 100), email: clip(b.guest.email, 200).toLowerCase(),
       telefon: clip(b.guest.phone, 40), oraSosire: clip(b.guest.arrival, 10), cereri: clip(b.guest.notes, 1000),
       total: typeof b.total === 'number' ? b.total : '', moneda: clip(b.currency, 8) || 'lei', limba: clip(b.lang, 5) || 'ro',
@@ -426,6 +449,14 @@ function admin(b) {
     return { ok: true };
   }
   if (op === 'block') return adminBlocheaza(cfg, b);
+  if (op === 'sejur') {
+    t = citeste(FOI.rez);
+    var rs = t.rows.filter(function (x) { return x.id === b.id; })[0];
+    if (!rs || rs.status !== 'confirmata') return { ok: false, error: 'status', message: 'Emailul se trimite doar pentru rezervări confirmate.' };
+    var lipsaSetare = b.kind === 'recenzie' ? (!cfg.linkRecenzie && 'linkRecenzie') : (!cfg.infoSosire && 'infoSosire');
+    if (lipsaSetare) return { ok: false, error: 'setup', message: 'Completează ' + lipsaSetare + ' în foaia Setari.' };
+    return trimiteSejur(t, rs, cfg, b.kind === 'recenzie' ? 'recenzie' : 'sosire') ? { ok: true } : { ok: false, error: 'mail', message: 'Emailul nu a putut fi trimis.' };
+  }
   if (op === 'unblock') {
     t = citeste(FOI.man);
     var bl = t.rows.filter(function (x) { return x.id === b.id; })[0];
@@ -452,6 +483,7 @@ function adminLista(cfg) {
   var manuale = blocariManuale().filter(function (b) { return String(b.panaLa) >= din; })
     .map(function (b) { return { id: String(b.id), unitate: String(b.unitate), deLa: String(b.deLa), panaLa: String(b.panaLa), motiv: String(b.motiv || '') }; });
   return { ok: true, azi: azi(), rezervari: rez, booking: booking, manuale: manuale,
+    sejur: { activ: String(cfg.emailuriSejur || 'da').toLowerCase() === 'da', info: !!cfg.infoSosire, recenzie: !!cfg.linkRecenzie, zile: Number(cfg.zileInainteSosire) || 2 },
     camere: cfg.camere.map(function (c) { return { unit: c.unit, type: c.type, ical: !!c.ical }; }),
     emailuriRamase: MailApp.getRemainingDailyQuota() };
 }
@@ -523,6 +555,60 @@ function expiraCereri() {
   golesteCache();
 }
 
+// ============================================================ emailuri în jurul sejurului
+
+// Rulează din declanșatorul de 15 minute, doar între 9 și 20 (ora României), pentru rezervări confirmate:
+// - cu zileInainteSosire zile înainte de sosire: informațiile din infoSosire;
+// - a doua zi după plecare (până la 7 zile): mulțumesc + link spre recenzie.
+// Fiecare pleacă o singură dată; dacă trimiterea eșuează, se reîncearcă la următoarea rulare.
+function emailuriSejur(oriceOra) {
+  var cfg = setari(), n = { sosire: 0, recenzie: 0 };
+  if (String(cfg.emailuriSejur || 'da').toLowerCase() !== 'da') return n;
+  var ora = Number(Utilities.formatDate(new Date(), 'Europe/Bucharest', 'H'));
+  if (!oriceOra && (ora < 9 || ora >= 20)) return n;
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return n;
+  try {
+    var z = azi(), zile = Number(cfg.zileInainteSosire) || 2, t = citeste(FOI.rez);
+    t.rows.forEach(function (r) {
+      if (r.status !== 'confirmata') return;
+      var ci = String(r.checkIn), co = String(r.checkOut);
+      if (cfg.infoSosire && !r.preSosireTrimis && ci >= z && ci <= Core.addDays(z, zile) && trimiteSejur(t, r, cfg, 'sosire')) n.sosire++;
+      if (cfg.linkRecenzie && !r.recenzieTrimis && co < z && co >= Core.addDays(z, -7) && trimiteSejur(t, r, cfg, 'recenzie')) n.recenzie++;
+    });
+  } finally { lock.releaseLock(); }
+  if (n.sosire || n.recenzie) console.log('Emailuri sejur: ' + JSON.stringify(n));
+  return n;
+}
+
+// Butonul de hartă din emailul de sosire; lipsește dacă nu e completat linkHarta
+function butonHarta(cfg) {
+  if (!/^https:\/\//.test(String(cfg.linkHarta || ''))) return '';
+  return '<p style="margin:24px 0 0"><a href="' + Core.esc(cfg.linkHarta) + '" style="display:inline-block;background:' + Core.esc(cfg.culoare || '#8a4a2e') +
+    ';color:#fff;text-decoration:none;padding:14px 26px;border-radius:999px;font-family:Arial,sans-serif;font-weight:bold">Deschide harta</a></p>';
+}
+
+function trimiteSejur(t, r, cfg, tip) {
+  var col = tip === 'sosire' ? 'preSosireTrimis' : 'recenzieTrimis';
+  scrieCelula(t, r._row, col, new Date().toISOString()); // marcăm întâi, ca să nu plece de două ori
+  try {
+    if (tip === 'sosire') {
+      trimite(r.email, 'email-sosire', r.limba, 'Ne vedem pe ' + fmt(r.checkIn) + ' – ' + cfg.numeProprietate, date(r, cfg, {
+        infoSosire: Core.esc(cfg.infoSosire).replace(/\r?\n/g, '<br>'),
+        butonHarta: butonHarta(cfg)
+      }), cfg.emailGazda);
+    } else {
+      trimite(r.email, 'email-recenzie', r.limba, 'Mulțumim că ați stat la ' + cfg.numeProprietate, date(r, cfg, { linkRecenzie: cfg.linkRecenzie }), cfg.emailGazda);
+    }
+    r[col] = 'trimis';
+    return true;
+  } catch (err) {
+    console.error('Email ' + tip + ' eșuat pentru ' + r.id, err);
+    scrieCelula(t, r._row, col, '');
+    return false;
+  }
+}
+
 // ============================================================ email de revenire
 
 // Rulează de mână, o dată pe sezon. Trimite doar oaspeților confirmați din ultimul an,
@@ -558,9 +644,13 @@ function date(r, cfg, extra) {
     numeProprietate: cfg.numeProprietate, nume: r.nume, prenume: String(r.nume).split(/\s+/)[0], id: r.id,
     checkIn: fmt(r.checkIn), checkOut: fmt(r.checkOut), nopti: n,
     oaspeti: r.adulti + (Number(r.adulti) === 1 ? ' adult' : ' adulți') + (copii ? ', ' + copii + (copii === 1 ? ' copil' : ' copii') : ''),
-    camere: r.tipuri, total: r.total !== '' && r.total != null ? Number(r.total).toLocaleString('ro-RO') + ' ' + r.moneda : 'de confirmat de gazdă',
+    camere: String(r.tipuri).replace(/×1\b/g, ''), total: r.total !== '' && r.total != null ? Number(r.total).toLocaleString('ro-RO') + ' ' + r.moneda : 'de confirmat de gazdă',
     avans: cfg.avans || 'gazda îți trimite detaliile', anulare: cfg.anulare || 'gazda îți trimite detaliile',
     oreConfirmare: cfg.oreExpirare, telefonGazda: cfg.telefonGazda || '', emailGazda: cfg.emailGazda,
+    // „sună la …” doar dacă telefonul gazdei e completat în Setari
+    contactGazda: cfg.telefonGazda
+      ? 'Răspunde la acest email sau sună la <a href="tel:' + Core.esc(String(cfg.telefonGazda).replace(/\s/g, '')) + '" style="color:' + Core.esc(cfg.culoare || '#8a4a2e') + '">' + Core.esc(cfg.telefonGazda) + '</a>.'
+      : 'Răspunde la acest email.',
     oraSosire: r.oraSosire || '—', cereri: r.cereri || '—', telefon: r.telefon, email: r.email,
     siteUrl: cfg.siteUrl, culoare: cfg.culoare || '#8a4a2e', notaBooking: '', linkConfirm: '#', linkRefuz: '#'
   };
@@ -594,7 +684,10 @@ function testEmail() {
     checkOut: Core.addDays(azi(), 32), tipuri: 'cabana×1', adulti: 2, copii: '', total: 1000, moneda: 'lei', oraSosire: '16:00', cereri: 'test', limba: 'ro' };
   trimite(cfg.emailGazda, 'email-confirmare', 'ro', 'TEST oaspete – ' + cfg.numeProprietate, date(r, cfg, { titlu: 'Test email oaspete', mesaj: 'Dacă vezi asta, emailul către oaspete merge.' }));
   trimite(cfg.emailGazda, 'email-gazda', 'ro', 'TEST gazdă – ' + cfg.numeProprietate, date(r, cfg, {}));
-  console.log('Trimise 2 emailuri de test către ' + cfg.emailGazda + '. Mai poți trimite azi: ' + MailApp.getRemainingDailyQuota());
+  trimite(cfg.emailGazda, 'email-sosire', 'ro', 'TEST înainte de sosire – ' + cfg.numeProprietate, date(r, cfg, {
+    infoSosire: Core.esc(cfg.infoSosire || '(aici apare textul din infoSosire, foaia Setari)').replace(/\r?\n/g, '<br>'), butonHarta: butonHarta(cfg) }));
+  trimite(cfg.emailGazda, 'email-recenzie', 'ro', 'TEST după plecare – ' + cfg.numeProprietate, date(r, cfg, { linkRecenzie: cfg.linkRecenzie || '#' }));
+  console.log('Trimise 4 emailuri de test către ' + cfg.emailGazda + '. Mai poți trimite azi: ' + MailApp.getRemainingDailyQuota());
 }
 
 // Simulează o cerere de pe site, cap-coadă (rând în Rezervari + emailuri). Șterge apoi rândul TEST.
